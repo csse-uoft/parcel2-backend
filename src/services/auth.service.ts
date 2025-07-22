@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/user.model";
 import { Request } from "express";
+import crypto from "node:crypto";
 
 export interface AuthToken {
     userId: string;
@@ -41,3 +42,10 @@ export const generateToken = (data: AuthToken) => {
     return jwt.sign({ userId: data.userId, username: data.username }, process.env.JWT_SECRET as string, { expiresIn: "7d" });
 };
 
+export const generatePassword = (
+    length = 20,
+    characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,./?~!@-#$'
+) =>
+    Array.from(crypto.randomFillSync(new Uint32Array(length)))
+        .map((x) => characters[x % characters.length])
+        .join('')

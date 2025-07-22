@@ -5,8 +5,8 @@ import { body, validationResult } from "express-validator";
 import { createUser } from "../services/user.service";
 import { ServiceError } from "../utils/errors";
 import { getAuthTokenDecoded } from "../services/auth.service";
-
-const JWT_SECRET = process.env.JWT_SECRET || "jwtsecret_placeholder";
+import { sendVerificationMail } from "../services/email";
+import { configs } from "../config/configs";
 
 export const validateLogin = [
     body("username").notEmpty().withMessage("Username is required"),
@@ -52,7 +52,7 @@ export const login = async (req: Request, res: Response) => {
         user.lastLogin = new Date();
         await user.save();
 
-        const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: "7d" });
+        const token = jwt.sign({ userId: user._id, username: user.username }, configs.JWT_SECRET, { expiresIn: "7d" });
 
         res.cookie("token", token, { httpOnly: true, sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", secure: process.env.NODE_ENV === "production" });
         res.json({ message: "Login successful", token });
@@ -60,6 +60,23 @@ export const login = async (req: Request, res: Response) => {
         res.status(500).json({ message: "Server error" });
     }
 };
+
+export async function extendSession(req: Request, res: Response) {
+    const token = getAuthTokenDecoded(req);
+    if (!token) {
+        res.status(401).json({ message: "Unauthorized" });
+        return;
+    }
+
+    try {
+        // Verify the token and extend its expiration
+        const newToken = jwt.sign({ userId: token.userId, username: token.username }, configs.JWT_SECRET, { expiresIn: "7d" });
+        res.cookie("token", newToken, { httpOnly: true, sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", secure: process.env.NODE_ENV === "production" });
+        res.json({ message: "Session extended successfully", token: newToken });
+    } catch (error) {
+        res.status(500).json({ message: "Server error" });
+    }
+}
 
 export const validateRegistration = [
     body("username")
@@ -90,10 +107,15 @@ export const register = async (req: Request, res: Response) => {
         return;
     }
 
-    const { username, password, email } = req.body;
+    const { username, password, email,  } = req.body;
 
     try {
         const user = await createUser({ username, password, email });
+        // Create JWT token
+        const token = jwt.sign({ userId: user._id, username: user.username }, configs.JWT_SECRET, { expiresIn: "24h" });
+        // Send verification email
+        await sendVerificationMail(user.email, token);
+
         res.status(201).json({ message: "User registered successfully" });
     } catch (err) {
         if (err instanceof ServiceError) {
@@ -104,12 +126,44 @@ export const register = async (req: Request, res: Response) => {
     }
 }
 
+export async function verifyEmail(req: Request, res: Response) {
+    const { token } = req.query;
+
+    if (!token || typeof token !== "string") {
+        res.status(400).json({ message: "Invalid token" });
+        return;
+    }
+
+    try {
+        const decoded = jwt.verify(token, configs.JWT_SECRET) as { userId: string };
+        const user = await User.findById(decoded.userId);
+
+        if (!user) {
+            res.status(404).json({ message: "User not found" });
+            return;
+        }
+
+        if (user.isEmailVerified) {
+            res.status(200).json({ message: "Email already verified" });
+            return;
+        }
+
+        user.isEmailVerified = true;
+        await user.save();
+
+        res.status(200).json({ message: "Email verified successfully" });
+    } catch (error) {
+        res.status(500).json({ message: "Server error" });
+    }
+}
+
 export async function logout(req: Request, res: Response) {
     res.clearCookie("token");
     res.json({ message: "Logged out successfully" });
 }
 
 export async function getCurrentUser(req: Request, res: Response): Promise<void> {
+    // TODO: Extend session if token is valid and not expired
     const token = getAuthTokenDecoded(req);
     if (!token) {
         res.status(200).json({ username: "guest" });

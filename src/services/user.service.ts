@@ -1,11 +1,11 @@
-import User, {IUser} from "../models/user.model";
+import User, { IUser, UserModel } from "../models/user.model";
 import {ServiceError} from "../utils/errors";
 
 export const getUserById = async (userId: string) => {
     return await User.findById(userId).select("-password");
 };
 
-export async function createUser(userData: IUser): Promise<IUser> {
+export async function createUser(userData: IUser) {
     const existingUser = await User.findOne({ username: userData.username });
     if (existingUser) {
         throw new ServiceError("User already exists");

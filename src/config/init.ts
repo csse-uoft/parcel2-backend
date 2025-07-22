@@ -1,14 +1,8 @@
 import User from "../models/user.model";
 import {createUser} from "../services/user.service";
-import * as crypto from "node:crypto";
+import { generatePassword } from "../services/auth.service";
+import "../models"
 
-const generatePassword = (
-    length = 20,
-    characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,./?~!@-#$'
-) =>
-    Array.from(crypto.randomFillSync(new Uint32Array(length)))
-        .map((x) => characters[x % characters.length])
-        .join('')
 
 export const initAdminUser = async () => {
     const adminUser = await User.findOne({ username: "admin" });

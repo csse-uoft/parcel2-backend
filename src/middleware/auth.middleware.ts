@@ -7,5 +7,9 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         res.status(401).json({ message: "Unauthorized" });
         return;
     }
+    (req as any).user = {
+        userId: token.userId,
+        username: token.username,
+    };
     next();
 };

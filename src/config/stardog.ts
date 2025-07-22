@@ -1,16 +1,17 @@
 import {Connection, query, db} from "stardog";
 import {SparqlJsonParser} from "sparqljson-parse";
 
-const stardogConn = new Connection({
+export const stardogConn = new Connection({
     username: process.env.STARDOG_USERNAME as string,
     password: process.env.STARDOG_PASSWORD as string,
     endpoint: process.env.STARDOG_ENDPOINT as string,
 });
+export const STARDOG_DB_NAME = process.env.STARDOG_DB_NAME || 'parcel2';
 
 const sparqlJsonParser = new SparqlJsonParser();
 
 export const configureStardog = async () => {
-    const dbName = 'parcel2';
+    const dbName = STARDOG_DB_NAME;
 
     const result = await db.list(stardogConn);
     if (result.status === 401) {
@@ -40,3 +41,19 @@ export const configureStardog = async () => {
     console.log("✅ Stardog connected; " + results[0].count.value + " triples in the database");
 }
 
+export async function clearStardogDatabase() {
+    const dbName = STARDOG_DB_NAME;
+    // Start a transaction to clear the database
+    const {transactionId } = await db.transaction.begin(stardogConn, dbName);
+
+    const response = await db.clear(stardogConn, dbName, transactionId);
+    if (response.status !== 200) {
+        console.error("❌ Failed to clear Stardog database:", response.status, response.body);
+        await db.transaction.rollback(stardogConn, dbName, transactionId);
+        throw new Error("Failed to clear Stardog database");
+    }
+    // Commit the transaction
+    await db.transaction.commit(stardogConn, dbName, transactionId);
+
+    console.log(`✅ Cleared Stardog database: ${dbName}`);
+}

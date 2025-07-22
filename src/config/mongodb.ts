@@ -11,3 +11,12 @@ export const connectMongoDB = async () => {
         console.error("❌ MongoDB connection error:", error);
     }
 };
+
+export async function clearMongoDB() {
+    try {
+        await mongoose.connection.dropDatabase();
+        console.log("✅ MongoDB database cleared");
+    } catch (error) {
+        console.error("❌ Error clearing MongoDB database:", error);
+    }
+}
