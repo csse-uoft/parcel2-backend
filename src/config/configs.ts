@@ -15,7 +15,7 @@ for (const file of ['.env.local', '.env']) {
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-export const port = process.env.PORT && Number(process.env.PORT) || 3005;
+export const port = process.env.PORT && Number(process.env.PORT) || 3105;
 export const frontendConfig = {
     address: isProduction ? 'https://www.connectbuildnow.com' : 'http://localhost:3000'
 };
