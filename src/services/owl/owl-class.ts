@@ -1,4 +1,4 @@
-import { LiteralSpec } from "./sparql-utils";
+import { escapeLiteral, isLiteralSpec, LiteralSpec } from "./sparql-utils";
 import {
     executeSparqlQuery,
     executeSparqlUpdate,
@@ -32,6 +32,24 @@ export interface DeleteOptions {
     // passed to Stardog
     reasoning?: boolean;
 }
+
+// Allowed scalar literal types
+type Scalar = string | number | boolean | Date | bigint;
+
+// IRI-ish inputs for object properties
+type IriLike = string | NamedNode;
+
+// Operators per field
+type FieldFilter =
+    | Scalar
+    | LiteralSpec
+    | IriLike
+    | { $eq: Scalar | LiteralSpec | IriLike }
+    | { $in: Array<Scalar | LiteralSpec | IriLike> };
+
+// Nested where: keys are TS property names; values can be FieldFilter
+// or another nested Where for object properties (onClass).
+export type Where<T> = Partial<Record<keyof T, FieldFilter | Record<string, any>>>;
 
 const IRI = Symbol("owlInstanceIri"); // private slot name
 
@@ -143,6 +161,176 @@ export class OwlClass<TSelf extends object = any> {
         }
         return instances;
     }
+
+    static async find<T extends OwlClass>(
+        where: Where<T> = {},
+        opts: Omit<StardogQueryParams, "queryString"> = {}
+    ): Promise<T[]> {
+        // quick out on empty $in arrays
+        for (const v of Object.values(where ?? {})) {
+            if (v && typeof v === "object" && "$in" in v && Array.isArray((v as any).$in) && (v as any).$in.length === 0) {
+                return [];
+            }
+        }
+
+        const meta = getClassMeta(this.prototype);
+        const classAbs = PM.ensureExpanded(meta.classIri);
+
+        // Map TS prop -> absolute predicate IRI
+        const prop2predAbs: Record<string, string> = {};
+        for (const [prop, curie] of Object.entries(meta.propIris)) {
+            prop2predAbs[prop] = PM.ensureExpanded(curie);
+        }
+
+        // variable generator
+        let varIdx = 0;
+        const vNew = (hint?: string) => `?v${++varIdx}${hint ? "_" + hint : ""}`;
+
+        // SPARQL buffers
+        const triples: string[] = [`?s a <${classAbs}> .`];
+        const filters: string[] = [];
+
+        // value emitters
+        const emitIri = (x: any): string => {
+            if (x && x.termType === "NamedNode") return `<${x.value}>`;
+            const abs = PM.ensureExpanded(String(x));
+            return `<${abs}>`;
+        };
+        const emitLiteral = (x: any): string => {
+            if (x && x.termType === "NamedNode") return escapeLiteral(x.value); // treat as string literal if misused
+            if (typeof x === "string" || typeof x === "number" || typeof x === "boolean" || typeof x === "bigint" || x instanceof Date || isLiteralSpec(x)) {
+                return escapeLiteral(x);
+            }
+            return escapeLiteral(JSON.stringify(x));
+        };
+
+        // Resolve a CLASS_REGISTRY constructor from onClass
+        const ctorForOnClass = (onClass?: string) => {
+            if (!onClass) return undefined;
+            const abs = PM.ensureExpanded(onClass);
+            return CLASS_REGISTRY.get(abs);
+        };
+
+        // Recursive walker: add join patterns for nested object filters
+        const walkWhere = (
+            subjectVar: string,
+            curMeta: ReturnType<typeof getClassMeta>,
+            w: Record<string, any>
+        ) => {
+            for (const [tsProp, rawFilter] of Object.entries(w ?? {})) {
+                const predAbs = prop2predAbs[tsProp] ?? PM.ensureExpanded(curMeta.propIris[tsProp] ?? "");
+                if (!predAbs) continue;
+
+                const restr = curMeta.propRestr[tsProp];
+                const expectsLiteral = !!restr?.datatype && !restr?.onClass;
+                const expectsIri      = !!restr?.onClass && !restr?.datatype;
+
+                // operator normalization
+                let op: "$eq" | "$in" | "nested" = "$eq";
+                let payload: any = rawFilter;
+
+                const maybeOperatorObject =
+                    rawFilter && typeof rawFilter === "object" && !Array.isArray(rawFilter) && !(rawFilter as any).termType;
+
+                const isOpIn  = !!(maybeOperatorObject && "$in" in (rawFilter as any));
+                const isOpEq  = !!(maybeOperatorObject && "$eq" in (rawFilter as any));
+
+                // If this is an object property and the filter looks like a nested map (e.g. { name: "Doctor" }),
+                // treat as NESTED when it doesn't specify $eq/$in OR when it's clearly a plain object of subfields.
+                const looksNested =
+                    expectsIri &&
+                    maybeOperatorObject &&
+                    !isOpEq &&
+                    !isOpIn &&
+                    // Heuristic: keys correspond to properties of the nested class
+                    Object.keys(rawFilter as any).length > 0;
+
+                if (looksNested) {
+                    op = "nested";
+                } else if (isOpIn) {
+                    op = "$in";
+                    payload = (rawFilter as any).$in;
+                } else if (isOpEq) {
+                    op = "$eq";
+                    payload = (rawFilter as any).$eq;
+                }
+
+                // ---------- NESTED (join on object property and recurse) ----------
+                if (op === "nested") {
+                    // Bind child node
+                    const childVar = vNew(tsProp);
+                    triples.push(`${subjectVar} <${predAbs}> ${childVar} .`);
+
+                    // Find nested constructor & metadata
+                    const childCtor = ctorForOnClass(restr?.onClass);
+                    if (!childCtor) {
+                        // No mapped class — allow raw IRI filters only
+                        // But user provided nested map → cannot proceed meaningfully
+                        throw new Error(`Property "${String(tsProp)}" is not mapped to a class; cannot descend into nested where.`);
+                    }
+                    const childMeta = getClassMeta(childCtor.prototype);
+
+                    // Build a temporary property map for child to use inside recursion
+                    const childProp2predAbs: Record<string, string> = {};
+                    for (const [p, c] of Object.entries(childMeta.propIris)) {
+                        childProp2predAbs[p] = PM.ensureExpanded(c);
+                    }
+
+                    // Recurse with child's metadata
+                    // NOTE: inside recursion we must use child's prop map, so temporarily swap
+                    const prevProp2predAbs = { ...prop2predAbs };
+                    Object.assign(prop2predAbs, childProp2predAbs);
+                    walkWhere(childVar, childMeta, rawFilter as Record<string, any>);
+                    Object.assign(prop2predAbs, prevProp2predAbs);
+                    continue;
+                }
+
+                // ---------- TERMINAL $eq / $in ----------
+                // Bind var when we need a FILTER, otherwise place the value inline
+                const bindVar = op === "$in";
+                const v = bindVar ? vNew(tsProp) : undefined;
+
+                const rhsFor = (val: any): string => {
+                    if (expectsIri) return emitIri(val);
+                    return emitLiteral(val);
+                };
+
+                if (op === "$eq") {
+                    const rhs = rhsFor(payload);
+                    triples.push(`${subjectVar} <${predAbs}> ${rhs} .`);
+                    continue;
+                }
+
+                if (op === "$in") {
+                    const list = (Array.isArray(payload) ? payload : [payload]).map(rhsFor).join(", ");
+                    triples.push(`${subjectVar} <${predAbs}> ${v} .`);
+                    filters.push(`FILTER(${v} IN (${list}))`);
+                    continue;
+                }
+            }
+        };
+
+        // Build where
+        walkWhere("?s", meta, where as Record<string, any>);
+
+        const query = `
+SELECT DISTINCT ?s WHERE {
+  ${triples.join("\n  ")}
+  ${filters.join("\n  ")}
+}`;
+        console.log(query);
+        const rows = await executeSparqlQuery({ ...opts, queryString: query });
+        if (!rows?.length) return [];
+
+        const out: T[] = [];
+        for (const r of rows) {
+            const iriAbs = r.s.value;
+            const inst = await this.findByIri<T>(iriAbs, opts);
+            if (inst) out.push(inst);
+        }
+        return out;
+    }
+
 
     /** Insert or update the current resource in Stardog. */
     async save(opts: SaveOptions = {}): Promise<void> {
@@ -292,6 +480,23 @@ async function termToJs(
         if (dt.endsWith("#integer")) return Number.parseInt(lit.value, 10);
         if (dt.match(/#(decimal|double)$/)) return Number.parseFloat(lit.value);
         if (dt.endsWith("#boolean")) return lit.value === "true";
+
+        if (dt.endsWith("#dateTime")) {
+            // parse date or dateTime
+            const date = new Date(lit.value);
+            if (isNaN(date.getTime())) {
+                throw new Error(`Invalid date value: ${lit.value}`);
+            }
+            return date;
+        }
+        if (dt.endsWith("#date")) {
+            // parse date only
+            const date = new Date(lit.value);
+            if (isNaN(date.getTime())) {
+                throw new Error(`Invalid date value: ${lit.value}`);
+            }
+            return date.toISOString().split("T")[0]; // return as YYYY-MM-DD
+        }
 
         if (!dt.endsWith("#string"))
             return { value: lit.value, datatype: dt };
