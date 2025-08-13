@@ -3,6 +3,7 @@ import { Address } from "./address.model";
 import { OntologyClass, OntologyProp, XSD, OwlClass } from "../services/owl/ontology";
 import { NamedNode } from "rdf-data-factory";
 import { Organization } from "./organization.model";
+import { Role } from "./role.model";
 
 
 @OntologyClass('bedeo:Partner', { instanceBase: 'bedeo:partner' })
@@ -12,6 +13,6 @@ export class Partner extends OwlClass<Partner> {
     declare organization: Organization;
 
     @OntologyProp('bedeo:has_role', { min: 1, onClass: 'bedeo:Role' })
-    declare roles?: NamedNode[];
+    declare roles?: Role[];
 
 }

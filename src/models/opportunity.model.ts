@@ -13,7 +13,7 @@ export class Opportunity extends OwlClass<Opportunity> {
     declare name: string;
 
     @OntologyProp('bedeo:has_description', { exactly: 1, datatype: XSD.string })
-    declare legalNames?: string;
+    declare description?: string;
 
     @OntologyProp('bedeo:requires_partnership_role', { exactly: 1, onClass: 'bedeo:Role' })
     declare partnershipRoles?: NamedNode[];

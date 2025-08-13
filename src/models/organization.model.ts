@@ -16,6 +16,7 @@ import { Contact } from "./contact.model";
 import { Address } from "./address.model";
 import { OntologyClass, OntologyProp, XSD, OwlClass } from "../services/owl/ontology";
 import { NamedNode } from "rdf-data-factory";
+import { OrganizationLegalName, OrganizationRegistrationNumber } from "./organization-registration.model";
 
 
 @OntologyClass('bedeo:Organization', { instanceBase: 'bedeo:organization' })
@@ -178,8 +179,8 @@ export class Organization extends OwlClass<Organization> {
     // @OntologyProp('bedeo:has_current_legal_name', { min: 1, max: 1, datatype: XSD.string })
     // declare currentLegalName: string;
 
-    @OntologyProp('bedeo:has_legal_name', { max: 2, datatype: XSD.string })
-    declare legalNames?: string[];
+    @OntologyProp('bedeo:has_legal_name', { max: 2, onClass: 'bedeo:OrganizationLegalName' })
+    declare legalNames?: OrganizationLegalName[];
 
     @OntologyProp('bedeo:has_brief_description', { exactly: 1, datatype: XSD.string })
     declare briefDescription: string;
@@ -190,8 +191,8 @@ export class Organization extends OwlClass<Organization> {
     @OntologyProp('bedeo:has_organization_values_statement', { max: 1, datatype: XSD.string })
     declare valuesStatement?: string;
 
-    @OntologyProp('bedeo:has_organization_business_registration_number', { max: 1, datatype: XSD.string })
-    declare businessRegistrationNumber?: string;
+    @OntologyProp('bedeo:has_organization_registration_number', { max: 5, onClass: 'bedeo:OrganizationRegistrationNumber' })
+    declare registrationNumbers?: OrganizationRegistrationNumber[];
 
     @OntologyProp('bedeo:has_opportunity', { onClass: 'bedeo:Opportunity' })
     declare opportunities?: string;

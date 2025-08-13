@@ -6,3 +6,5 @@ import "./person.model";
 import "./partner.model"
 import "./opportunity.model"
 import "./opportunity-additional-info.model"
+import "./role.model"
+import "./organization-registration.model"
