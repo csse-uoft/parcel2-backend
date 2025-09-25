@@ -4,6 +4,9 @@ import { OntologyClass, OntologyProp, XSD, OwlClass } from "../services/owl/onto
 import { NamedNode } from "rdf-data-factory";
 import { Partner } from "./partner.model";
 import { OpportunityAdditionalInfo } from "./opportunity-additional-info.model";
+import { ProjectStage, ProjectType } from "./project.model";
+import { Role, RoleType } from "./role.model";
+import { Land } from "./land.model";
 
 
 @OntologyClass('bedeo:Opportunity', { instanceBase: 'bedeo:opportunity' })
@@ -15,23 +18,23 @@ export class Opportunity extends OwlClass<Opportunity> {
     @OntologyProp('bedeo:has_description', { exactly: 1, datatype: XSD.string })
     declare description?: string;
 
-    @OntologyProp('bedeo:requires_partnership_role', { exactly: 1, onClass: 'bedeo:Role' })
-    declare partnershipRoles?: NamedNode[];
+    @OntologyProp('bedeo:requires_partnership_role', { onClass: 'bedeo:RoleType' })
+    declare partnershipRoles?: RoleType[] | NamedNode[] | string[];
 
     @OntologyProp('bedeo:has_primary_contact', { exactly: 1, onClass: 'bedeo:Contact' })
     declare primaryContact?: Contact;
 
     @OntologyProp('bedeo:has_project_type', { exactly: 1, onClass: 'bedeo:ProjectType' })
-    declare projectType?: NamedNode;
+    declare projectType?: ProjectType | NamedNode | string;
 
     @OntologyProp('bedeo:has_project_stage', { exactly: 1, onClass: 'bedeo:ProjectStage' })
-    declare projectStage?: NamedNode;
+    declare projectStage?: ProjectType | NamedNode | string;
 
-    @OntologyProp('bedeo:has_partner', { min: 0, onClass: 'bedeo:Partner' })
+    @OntologyProp('bedeo:has_partner', { onClass: 'bedeo:Partner' })
     declare partners?: Partner[];
 
-    @OntologyProp('bedeo:has_land', { max: 1, onClass: 'bedeo:Land' }) // need a land model
-    declare land?: string;
+    @OntologyProp('bedeo:has_land', { exactly: 1, onClass: 'bedeo:Land' }) // need a land model
+    declare land?: Land;
 
     @OntologyProp('bedeo:has_additional_info', { exactly: 1, onClass: 'bedeo:OpportunityAdditionalInfo' })
     declare additionalInfo?: OpportunityAdditionalInfo;

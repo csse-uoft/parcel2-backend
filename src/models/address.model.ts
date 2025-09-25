@@ -70,4 +70,9 @@ export class Address extends OwlClass<Address> {
     @OntologyProp('bedeo:has_unit_identifier', { max: 1 })
     declare unitIdentifier?: string;
 
+    @OntologyProp('bedeo:has_latitude', { max: 1 })
+    declare latitude?: string;
+
+    @OntologyProp('bedeo:has_longitude', { max: 1 })
+    declare longitude?: string;
 }

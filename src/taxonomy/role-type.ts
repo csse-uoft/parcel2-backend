@@ -1,51 +1,68 @@
-// Predefined role types for the parcel2
+import { RoleType } from "../models";
+import { ITaxonomy } from "./index";
 
-import { initTests } from "../services/owl/test/init";
-
-import "../models/address.model";
-import "../models/organization.model";
-import "../models/contact.model";
-import "../models/role.model";
-
-import "../services/owl/ontology";
-import "../services/owl/ontology-generator";
-import { Role, RoleType } from "../models/role.model";
-import { OwlClass } from "../services/owl/owl-class";
-
-export async function init() {
-
-    // Predefined role types
-    const roleTypes = [
-        { name: "Builder", description: "Responsible for the construction of the project." },
-        { name: "Community Liaison", description: "Acts as a bridge between the project team and the community, ensuring that community needs and concerns are addressed." },
-        { name: "Developer", description: "Oversees the development process, ensuring that the project meets its goals and objectives." },
-        { name: "Financier", description: "Provides financial resources for the project, ensuring that it has the necessary funding to proceed." },
-        { name: "Funder", description: "Supports the project with funding, often with specific conditions or requirements." },
-        { name: "Investor", description: "Invests in the project, expecting a return on investment or other benefits." },
-        { name: "Post Development Beneficiary", description: "Receives benefits from the project after its completion, such as improved infrastructure or services." }
-    ];
-
-    // Get existing role types
-    const existingRoleTypes = await RoleType.find<RoleType>({ name: { $in: roleTypes.map(rt => rt.name) } });
-    console.log(existingRoleTypes)
-    // return
-    // Filter out existing role types
-    const newRoleTypes = roleTypes.filter(rt => !existingRoleTypes.some((existing: RoleType) => existing?.name === rt.name && existing?.description === rt.description));
-    // Create new role types
-    if (newRoleTypes.length === 0) {
-        console.log("No new role types to create.");
-        return;
-    }
-    for (const roleTypeData of newRoleTypes) {
-        const roleType = new RoleType(roleTypeData);
-        await roleType.save();
-        console.log(`Created role type: ${roleType.name}`);
-    }
-    console.log("All predefined role types have been created.");
-}
-
-(async function () {
-    // Initialize tests
-    await initTests();
-    await init()
-})()
+export const Taxonomy: ITaxonomy = {
+    class: RoleType,
+    data: [
+        {
+            name: "Investor",
+            description:
+                "Provides equity capital in exchange for ownership and a share of project profits.",
+        },
+        {
+            name: "Lender",
+            description:
+                "Provides a loan or other debt financing for the project.",
+        },
+        {
+            name: "Guarantor",
+            description:
+                "Provides a guarantee on a loan.",
+        },
+        {
+            name: "Public Funder",
+            description:
+                "Government body or agency that provides grants or low-interest loans.",
+        },
+        {
+            name: "Sponsor",
+            description:
+                "Organization that initiates and oversees the project.",
+        },
+        {
+            name: "Land Owner",
+            description:
+                "Contributes the land to the project.",
+        },
+        {
+            name: "Developer",
+            description:
+                "Manages the development process from conception to completion.",
+        },
+        {
+            name: "General Contractor",
+            description:
+                "Responsible for construction, including managing subcontractors and the construction schedule.",
+        },
+        {
+            name: "Designer",
+            description:
+                "Creates the project's plans, drawings, and technical specifications.",
+        },
+        {
+            name: "Community Engagement Partner",
+            description:
+                "Acts as a liaison between the project and the local community.",
+        },
+        {
+            name: "Sales Partner",
+            description:
+                "Manages marketing, sales, and/or leasing for the project.",
+        },
+        {
+            name: "Property Manager",
+            description:
+                "Handles day-to-day operations of the completed project.",
+        },
+    ]
+};

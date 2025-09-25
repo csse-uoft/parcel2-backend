@@ -101,11 +101,19 @@ ${triples.map(t => "  " + t).join("\n")}
 
                 // ----- literals
                 if (
-                    isLiteralSpec(vRaw) ||
+                   ( isLiteralSpec(vRaw) ||
                     typeof vRaw !== "object" ||
-                    vRaw instanceof Date
+                    vRaw instanceof Date)
                 ) {
-                    const restr = meta.propRestr[prop] as Restriction | undefined;
+                    // Step 0: special case - if a string is given + onClass restriction
+                    // providing an IRI as a string and the restriction's onClass should be provided
+                    if (typeof vRaw === "string" && PM.isValidIRI(vRaw) && restr?.datatype == null && restr?.onClass) {
+                        const childCurie = PM.ensurePrefixed(vRaw);
+                        out.push(`${subj} ${predCurie} ${childCurie} .`);
+                        deletes.push(`${subj} ${predCurie} ?o .`);
+                        addPrefix(childCurie, used);
+                        continue;
+                    }
 
                     // STEP 1: normalise to LiteralSpec
                     let spec: LiteralSpec;

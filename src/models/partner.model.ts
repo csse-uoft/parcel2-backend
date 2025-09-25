@@ -12,6 +12,9 @@ export class Partner extends OwlClass<Partner> {
     @OntologyProp('bedeo:has_organization', { exactly: 1, onClass: 'bedeo:Organization' })
     declare organization: Organization;
 
+    @OntologyProp('bedeo:has_organization_name', { exactly: 1, datatype: XSD.string })
+    declare organizationName: string;
+
     @OntologyProp('bedeo:has_role', { min: 1, onClass: 'bedeo:Role' })
     declare roles?: Role[];
 

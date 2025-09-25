@@ -1,5 +1,6 @@
 import User, { IUser, UserModel } from "../models/user.model";
 import {ServiceError} from "../utils/errors";
+import { Organization } from "../models";
 
 export const getUserById = async (userId: string) => {
     return await User.findById(userId).select("-password");
@@ -22,3 +23,16 @@ export async function createUser(userData: IUser) {
     return newUser;
 }
 
+export async function getUserOrganization(userId: string): Promise<Organization> {
+    const user = await User.findById(userId);
+
+    if (!user || !user.organizationIRI) {
+        throw new ServiceError("Organization not found (no organizationIRI)", 404)
+    }
+
+    const organization = await Organization.findByIri<Organization>(user.organizationIRI);
+    if (!organization) {
+        throw new ServiceError("Organization not found (no organization for IRI)", 404)
+    }
+    return organization;
+}

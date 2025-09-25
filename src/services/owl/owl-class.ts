@@ -47,9 +47,14 @@ type FieldFilter =
     | { $eq: Scalar | LiteralSpec | IriLike }
     | { $in: Array<Scalar | LiteralSpec | IriLike> };
 
+// {iri: IriFilter}
+type IriFilter = string | NamedNode | { $eq: string | NamedNode } | { $in: Array<string | NamedNode> };
+
 // Nested where: keys are TS property names; values can be FieldFilter
 // or another nested Where for object properties (onClass).
-export type Where<T> = Partial<Record<keyof T, FieldFilter | Record<string, any>>>;
+export type Where<T> =
+    Partial<Record<keyof T, FieldFilter | Record<string, any>> | Record<"iri" | "@id" | "@iri", IriFilter>>;
+
 
 const IRI = Symbol("owlInstanceIri"); // private slot name
 
@@ -144,6 +149,14 @@ export class OwlClass<TSelf extends object = any> {
         return instance;
     }
 
+    static async findByIris<T extends OwlClass>(
+        iris: string[],
+        opts: Omit<StardogQueryParams, "queryString"> = {}
+    ): Promise<T[]> {
+        if (!iris?.length) return [];
+        return this.find<T>({ iri: { "$in": iris } }, opts);
+    }
+
     static async findAll<T extends OwlClass>(limit: number = 20, offset: number = 0): Promise<T[]> {
         const meta = getClassMeta(this.prototype);
         const classIri = PM.ensureExpanded(meta.classIri);
@@ -160,6 +173,14 @@ export class OwlClass<TSelf extends object = any> {
             if (instance) instances.push(instance);
         }
         return instances;
+    }
+
+    static async findOne<T extends OwlClass>(
+        where: Where<T> = {},
+        opts: Omit<StardogQueryParams, "queryString"> = {}
+    ): Promise<T | null> {
+        const results = await this.find(where, { ...opts, limit: 1 });
+        return results.length > 0 ? results[0] : null;
     }
 
     static async find<T extends OwlClass>(
@@ -189,6 +210,52 @@ export class OwlClass<TSelf extends object = any> {
         // SPARQL buffers
         const triples: string[] = [`?s a <${classAbs}> .`];
         const filters: string[] = [];
+
+        // Build IRIs into VALUES ...
+        const iriFilterRaw =
+            (where as any).iri ??
+            (where as any)['@id'] ??
+            (where as any)['@iri'];
+
+        if (iriFilterRaw !== undefined) {
+            const toAbs = (x: string | NamedNode) =>
+                (x as any)?.termType === "NamedNode"
+                    ? (x as NamedNode).value
+                    : PM.ensureExpanded(String(x));
+
+            let iriList: string[] = [];
+
+            if (iriFilterRaw && typeof iriFilterRaw === 'object' && !Array.isArray(iriFilterRaw)) {
+                if ('$in' in iriFilterRaw) {
+                    const arr = (iriFilterRaw as any).$in as Array<string | NamedNode>;
+                    if (!arr?.length) return [];
+                    iriList = arr.map(toAbs);
+                } else if ('$eq' in iriFilterRaw) {
+                    iriList = [toAbs((iriFilterRaw as any).$eq)];
+                } else {
+                    // fallthrough: treat as eq if it's a NamedNode-like object
+                    iriList = [toAbs(iriFilterRaw as any)];
+                }
+            } else {
+                // primitive string / NamedNode
+                iriList = [toAbs(iriFilterRaw as any)];
+            }
+
+            // Constrain ?s to the provided IRIs
+            if (iriList.length === 1) {
+                // FILTER is fine for single; VALUES also OK. Pick one:
+                filters.push(`FILTER(?s = <${iriList[0]}>)`);
+            } else {
+                // VALUES is efficient for many
+                const items = iriList.map(i => `<${i}>`).join(' ');
+                triples.push(`VALUES ?s { ${items} }`);
+            }
+
+            // prevent generic walker from trying to treat "iri" as a mapped property
+            delete (where as any).iri;
+            delete (where as any)['@id'];
+            delete (where as any)['@iri'];
+        }
 
         // value emitters
         const emitIri = (x: any): string => {
@@ -223,7 +290,7 @@ export class OwlClass<TSelf extends object = any> {
 
                 const restr = curMeta.propRestr[tsProp];
                 const expectsLiteral = !!restr?.datatype && !restr?.onClass;
-                const expectsIri      = !!restr?.onClass && !restr?.datatype;
+                const expectsIri = !!restr?.onClass && !restr?.datatype;
 
                 // operator normalization
                 let op: "$eq" | "$in" | "nested" = "$eq";
@@ -232,8 +299,8 @@ export class OwlClass<TSelf extends object = any> {
                 const maybeOperatorObject =
                     rawFilter && typeof rawFilter === "object" && !Array.isArray(rawFilter) && !(rawFilter as any).termType;
 
-                const isOpIn  = !!(maybeOperatorObject && "$in" in (rawFilter as any));
-                const isOpEq  = !!(maybeOperatorObject && "$eq" in (rawFilter as any));
+                const isOpIn = !!(maybeOperatorObject && "$in" in (rawFilter as any));
+                const isOpEq = !!(maybeOperatorObject && "$eq" in (rawFilter as any));
 
                 // If this is an object property and the filter looks like a nested map (e.g. { name: "Doctor" }),
                 // treat as NESTED when it doesn't specify $eq/$in OR when it's clearly a plain object of subfields.
@@ -331,6 +398,14 @@ SELECT DISTINCT ?s WHERE {
         return out;
     }
 
+    /**
+     * Assign a new IRI to this instance if it doesn't have one yet.
+     */
+    assignIRI() {
+        if (!this.iri) {
+            this.__setIri(PM.ensurePrefixed(defaultIriFactory(this)));
+        }
+    }
 
     /** Insert or update the current resource in Stardog. */
     async save(opts: SaveOptions = {}): Promise<void> {
@@ -361,6 +436,16 @@ SELECT DISTINCT ?s WHERE {
             `${prefixBlock}\n\n${deleteWhere} ;\n${insertData}`;
 
         await executeSparqlUpdate(update, { reasoning: opts.reasoning });
+    }
+
+    static async deleteAll<T extends OwlClass>(
+        where: Where<T> = {},
+        opts: DeleteOptions = {}
+    ): Promise<void> {
+        const instances = await this.find(where, { reasoning: opts.reasoning });
+        for (const instance of instances) {
+            await instance.delete(opts);
+        }
     }
 
     /** Delete this resource; optionally cascade to nested ones. */

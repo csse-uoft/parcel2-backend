@@ -3,6 +3,8 @@ import User from "../models/user.model";
 import { Person } from "../models/person.model";
 import { Organization } from "../models/organization.model";
 import { getAuthTokenDecoded } from "../services/auth.service";
+import { getUserOrganization } from "../services/user.service";
+import { ServiceError } from "../utils/errors";
 
 export const getUserProfile = async (req: Request, res: Response) => {
     try {
@@ -114,6 +116,7 @@ export async function updateUserOrg(req: Request, res: Response) {
             organization = Organization.create(organizationData);
         } else {
             // Update existing organization data
+            delete organizationData.iri; // Ensure we don't overwrite the IRI
             Object.assign(organization, organizationData);
         }
         console.log("Updating organization:", organization);
@@ -131,24 +134,17 @@ export async function updateUserOrg(req: Request, res: Response) {
 }
 
 export async function getUserOrg(req: Request, res: Response) {
+    const userId = (req as any).user.userId;
     try {
-        const userId = (req as any).user.userId;
-        const user = await User.findById(userId);
-
-        if (!user || !user.organizationIRI) {
-            res.status(404).json({ message: "Organization not found (no organizationIRI)" });
-            return;
-        }
-
-        const organization = await Organization.findByIri(user.organizationIRI);
-        if (!organization) {
-            res.status(404).json({ message: "Organization not found" });
-            return;
-        }
-
+        const organization = await getUserOrganization(userId);
         res.json(organization);
-    } catch (error) {
-        console.error("Error fetching user organization:", error);
+    } catch (err) {
+        if (err instanceof ServiceError && err.status === 404) {
+            res.status(404).json({ message: "User organization not found:" + err.message });
+            return;
+        }
+        console.error("Error in getUserOrganization:", err);
         res.status(500).json({ message: "Error fetching user organization" });
+        return;
     }
 }

@@ -5,6 +5,7 @@ import { OntologyValidator } from './validator';
 import { SparqlBuilder } from './sparql-builder';
 import { Contact } from "../../models/contact.model";
 import "../../models/address.model";
+import "../../models/organization-registration.model"
 
 // build some test data
 // const c1 = Object.assign(new ContactInfo(), { firstName: 'Ada', lastName: 'Lovelace' });
@@ -44,7 +45,7 @@ import "../../models/address.model";
 // console.log(SparqlBuilder.insert(contact));
 
 const org3 = Organization.create({
-    legalNames: ['Analytical Engines Inc.'],
+    legalNames: [{hasValue: 'Analytical Engines Inc.'}],
     description: 'Early computer consultancy.',
     primaryContact: Contact.create({
         contactName: 'Ada Lovelace',
@@ -60,6 +61,7 @@ const org3 = Organization.create({
         countryCode: 'CA'
     },
     organizationType: new NamedNode('http://example.com/ontology/OrganizationType/Company'),
+    briefDescription: 'A company that specializes in analytical engines.',
 });
 
 
@@ -102,6 +104,9 @@ async function test() {
     console.log(JSON.stringify(org4, null, 2));
     // console.log(JSON.stringify(org4?.toJSONLD(), null, 2));
 
+    const orgs = await Organization.find<Organization>({primaryAddress: { localityName: 'Toronto' } });
+    console.log(`Found ${orgs.length} organizations in Toronto`);
+    orgs.forEach(o => console.log(orgs));
 }
 
 test()

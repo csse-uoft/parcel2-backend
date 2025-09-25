@@ -10,15 +10,15 @@ export class OpportunityAdditionalInfo extends OwlClass<OpportunityAdditionalInf
     declare images: string[];
 
     @OntologyProp('bedeo:has_primary_image', { max: 1, datatype: XSD.string })
-    declare primary_image: string;
+    declare primaryImage: string;
 
     @OntologyProp('bedeo:has_files', { datatype: XSD.string })
     declare files: string[];
 
-    @OntologyProp('bedeo:is_posted', { max: 1, datatype: XSD.string })
+    @OntologyProp('bedeo:is_posted', { max: 1, datatype: XSD.boolean })
     declare isPosted?: boolean;
 
-    @OntologyProp('bedeo:is_searchable', { max: 1, datatype: XSD.string })
+    @OntologyProp('bedeo:is_searchable', { max: 1, datatype: XSD.boolean })
     declare isSearchable?: boolean;
 
     @OntologyProp('bedeo:has_date_posted', { max: 1, datatype: XSD.dateTime })

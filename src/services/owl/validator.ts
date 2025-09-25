@@ -35,7 +35,7 @@ export class OntologyValidator {
                 if (rule.datatype) {
                     const curie = PM.ensurePrefixed(rule.datatype);  // decorator already normalised
                     const isLiteralObject = isLiteralSpec(v);
-                    if (!jsMatchesXsd(curie, isLiteralObject ?v.value : v)) {
+                    if (!jsMatchesXsd(curie, isLiteralObject ? v.value : v)) {
                         throw new Error(`Property ${curPath} expects datatype ${curie} but got ${isLiteralObject ? v.datatype : typeof v}`);
                     }
                 }
@@ -50,7 +50,14 @@ export class OntologyValidator {
 
                 // NESTED CLASS, no validation for NamedNode
                 if (rule.onClass && v.termType !== 'NamedNode') {
-                    if (Reflect.hasMetadata(CLASS_IRI, v)) {
+                    if (typeof v === 'string') {
+                        // ensure it's an IRI
+                        const isValid = PM.isValidIRI(v);
+                        if (!isValid)
+                            throw new Error(`Property ${curPath} expects an IRI when type=string for class ${PM.ensurePrefixed(rule.onClass)} but got '${v}'`);
+                        // TODO: For taxonomies IRI, check if the IRI exists
+
+                    } else if (Reflect.hasMetadata(CLASS_IRI, v)) {
                         const expected = PM.ensurePrefixed(rule.onClass);
                         const meta = getClassMeta(v as object);
                         const actual = PM.ensurePrefixed(meta.classIri);

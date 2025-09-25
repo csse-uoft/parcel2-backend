@@ -58,6 +58,21 @@ export class PrefixManager {
     }
 
     /**
+     * Check if a string is a CURIE or absolute IRI and has a known prefix.
+     */
+    isValidIRI(val: string): boolean {
+        if (ABS_RE.test(val) || CURIE_RE.test(val)) {
+            try {
+                this.getNamespace(val);
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Return an absolute IRI.  Accepts CURIE or absolute IRI;
      * throws if unknown prefix.
      * @param val

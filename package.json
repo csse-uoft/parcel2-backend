@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "cleanup:tmp": "ts-node src/jobs/cleanupTmp.ts --hours=24",
+    "cleanup:tmp:dry": "ts-node src/jobs/cleanupTmp.ts --hours=24 --dry-run --verbose"
   },
   "dependencies": {
     "@socket.io/redis-adapter": "^8.3.0",
@@ -26,7 +28,8 @@
     "mongodb": "^6.15.0",
     "mongoose": "^8.12.1",
     "morgan": "^1.10.0",
-    "multer": "2.0.1",
+    "multer": "^2.0.1",
+    "next-connect": "^1.0.0",
     "nodemailer": "^7.0.5",
     "passport": "^0.7.0",
     "passport-google-oidc": "^0.1.0",
@@ -34,7 +37,8 @@
     "socket.io": "^4.4.1",
     "sparqljson-parse": "^3.0.0",
     "stardog": "^7.1.0",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "zod": "^4.1.11"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

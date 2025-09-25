@@ -4,10 +4,10 @@ import { OntologyClass, OntologyProp, XSD, OwlClass } from "../services/owl/onto
 @OntologyClass('bedeo:Role', { instanceBase: 'bedeo:role' })
 export class Role extends OwlClass<Role> {
 
-    @OntologyProp('bedeo:has_start_date', { max: 1, datatype: XSD.dateTime })
+    @OntologyProp('bedeo:has_start_date', { max: 1, datatype: XSD.date })
     declare startDate?: Date;
 
-    @OntologyProp('bedeo:has_end_date', { max: 1, datatype: XSD.dateTime })
+    @OntologyProp('bedeo:has_end_date', { max: 1, datatype: XSD.date })
     declare endDate?: Date;
 
     @OntologyProp('bedeo:has_description', { max: 1, datatype: XSD.string })
@@ -21,9 +21,9 @@ export class Role extends OwlClass<Role> {
 // Taxonomy of roles
 @OntologyClass('bedeo:RoleType', { instanceBase: 'bedeo:roleType' })
 export class RoleType extends OwlClass<RoleType> {
-    @OntologyProp('bedeo:has_name', { max: 1, datatype: XSD.string })
+    @OntologyProp('bedeo:has_name', { exactly: 1, datatype: XSD.string })
     declare name: string;
 
-    @OntologyProp('bedeo:has_description', { min: 1, datatype: XSD.string })
+    @OntologyProp('bedeo:has_description', { exactly: 1, datatype: XSD.string })
     declare description?: string;
 }
