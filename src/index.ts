@@ -64,7 +64,7 @@ async function init() {
     app.use("/api/auth", authRoutes);
     app.use("/api", usersRoutes);
     app.use("/api", organizationRoutes);
-    app.use("/taxonomy", taxonomyRoutes);
+    app.use("/api/taxonomy", taxonomyRoutes);
     app.use("/api/uploads", uploadRoutes);
     app.use("/api/opportunities", opportunitiesRoute);
 
