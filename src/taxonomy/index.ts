@@ -17,9 +17,12 @@ export async function initTaxonomy() {
     const directoryPath = path.join(__dirname);
     const files = fs.readdirSync(directoryPath);
 
-    // Iterate all taxonomies and ensure they are initialized
-    const taxonomies = await Promise.all(files.filter(file => file.endsWith('.ts') && file !== 'index.ts')
-        .map(file => import("./" + file.replace('.ts', ''))));
+    // Iterate all taxonomies and ensure they are initialized, this should also work with compiled js
+    const taxonomies = await Promise.all(
+        files
+            .filter(file => (file.endsWith('.ts') || file.endsWith('.js')) && file !== 'index.ts' && file !== 'index.js')
+            .map(file => import(path.join(__dirname, file.replace(/\.(ts|js)$/, ''))))
+    );
     for (const taxonomy of taxonomies) {
         const taxonomyData: ITaxonomy = taxonomy.Taxonomy;
 
@@ -40,7 +43,7 @@ export async function initTaxonomy() {
             continue;
         }
 
-        const {classIri, instanceBase} = getClassMeta(taxonomyData.class); // Ensure metadata is loaded
+        const { classIri, instanceBase } = getClassMeta(taxonomyData.class); // Ensure metadata is loaded
 
         if (!classIri || !instanceBase) {
             console.warn(`Taxonomy class metadata is missing in ${taxonomyData.class.name}`);
@@ -48,7 +51,7 @@ export async function initTaxonomy() {
         }
 
         // add iri
-        taxonomyData.data = taxonomyData.data.map(item => ({...item, iri: nameToIri(instanceBase, item.name)}));
+        taxonomyData.data = taxonomyData.data.map(item => ({ ...item, iri: nameToIri(instanceBase, item.name) }));
 
         console.log(`Processing taxonomy: ${taxonomyData.class.name}`);
         // If the taxonomy class exists, check if it needs to be initialized (delete and recreate)
