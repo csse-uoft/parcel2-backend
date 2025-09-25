@@ -40,5 +40,5 @@ export const configs = {
 
     JWT_SECRET: process.env.JWT_SECRET || "jwtsecret_placeholder",
     PORT: port,
-    backendAddress: process.env.BACKEND_ADDRESS || (isProduction ? 'https://www.connectbuildnow.com' : `http://localhost:${port}`),
+    backendAddress: process.env.BACKEND_ADDRESS || (isProduction ? 'https://www.connectbuildnow.org' : `http://localhost:${port}`),
 }
