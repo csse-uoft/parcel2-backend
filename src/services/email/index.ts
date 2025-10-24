@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import {getVerificationTemplate} from './template';
+import { getOrganizationInvitationTemplate, getVerificationTemplate } from './template';
 import { mailerConfig } from '../../config/configs';
 
 const transporter = nodemailer.createTransport(mailerConfig.mailServer);
@@ -22,6 +22,33 @@ export const sendVerificationMail = async (email: string, token: string) => {
         console.log("email sent");
         resole(undefined);
       }
+    });
+  });
+};
+
+interface InvitationMailOptions {
+  email: string;
+  temporaryPassword: string;
+  organizationName?: string | null;
+}
+
+export const sendOrganizationInvitationMail = async ({ email, temporaryPassword, organizationName }: InvitationMailOptions) => {
+  const { html, text } = getOrganizationInvitationTemplate({ email, temporaryPassword, organizationName });
+  const mailOptions = {
+    from: mailerConfig.from,
+    to: email,
+    subject: organizationName ? `${organizationName} invited you to Parcel` : 'Parcel account invitation',
+    html,
+    text,
+  };
+
+  await new Promise<void>((resolve, reject) => {
+    transporter.sendMail(mailOptions, (err: any) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve();
     });
   });
 };

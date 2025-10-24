@@ -10,6 +10,8 @@ import organizationRoutes from "./routes/organization.routes";
 import taxonomyRoutes from "./routes/taxonomy.routes";
 import uploadRoutes from "./routes/uploads.routes";
 import opportunitiesRoute from "./routes/opportunities.route";
+import adminRoutes from "./routes/admin.routes";
+import orgAdminRoutes from "./routes/org-admin.routes";
 import chatSocket from "./sockets/chat.socket";
 import { connectMongoDB } from "./config/mongodb";
 import { configureUploads } from "./config/uploads";
@@ -67,6 +69,8 @@ async function init() {
     app.use("/api/taxonomy", taxonomyRoutes);
     app.use("/api/uploads", uploadRoutes);
     app.use("/api/opportunities", opportunitiesRoute);
+    app.use("/api/admin", adminRoutes);
+    app.use("/api/org-admin", orgAdminRoutes);
 
     // Serve static files from the "uploads" directory
     app.use('/uploads', express.static(UPLOADS_DIR));

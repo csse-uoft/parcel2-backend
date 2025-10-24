@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import { body, validationResult } from "express-validator";
 import { createUser } from "../services/user.service";
 import { ServiceError } from "../utils/errors";
-import { getAuthTokenDecoded } from "../services/auth.service";
+import { generateToken, getAuthTokenDecoded } from "../services/auth.service";
 import { sendVerificationMail } from "../services/email";
 import { configs } from "../config/configs";
 
@@ -52,10 +52,14 @@ export const login = async (req: Request, res: Response) => {
         user.lastLogin = new Date();
         await user.save();
 
-        const token = jwt.sign({ userId: user._id, username: user.username }, configs.JWT_SECRET, { expiresIn: "7d" });
+        const token = generateToken({
+            userId: user._id.toString(),
+            username: user.username,
+            roles: user.roles as any,
+        });
 
         res.cookie("token", token, { httpOnly: true, sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", secure: process.env.NODE_ENV === "production" });
-        res.json({ message: "Login successful", token });
+        res.json({ message: "Login successful", token, roles: user.roles });
     } catch (error) {
         res.status(500).json({ message: "Server error" });
     }
@@ -70,7 +74,17 @@ export async function extendSession(req: Request, res: Response) {
 
     try {
         // Verify the token and extend its expiration
-        const newToken = jwt.sign({ userId: token.userId, username: token.username }, configs.JWT_SECRET, { expiresIn: "7d" });
+        const user = await User.findById(token.userId).select("username roles");
+        if (!user) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const newToken = generateToken({
+            userId: user._id.toString(),
+            username: user.username,
+            roles: user.roles as any,
+        });
         res.cookie("token", newToken, { httpOnly: true, sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", secure: process.env.NODE_ENV === "production" });
         res.json({ message: "Session extended successfully", token: newToken });
     } catch (error) {

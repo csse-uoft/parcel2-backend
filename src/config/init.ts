@@ -1,7 +1,8 @@
 import User from "../models/user.model";
-import {createUser} from "../services/user.service";
+import { createUser } from "../services/user.service";
 import { generatePassword } from "../services/auth.service";
-import "../models"
+import "../models";
+import { UserRole } from "../constants/roles";
 
 
 export const initAdminUser = async () => {
@@ -17,6 +18,7 @@ export const initAdminUser = async () => {
             username: "admin",
             email: "admin@parcel.com",
             password: randomPassword,
+            roles: [UserRole.ADMIN, UserRole.USER],
         })
         console.log("✅ Admin user created with password:", randomPassword);
     } else {

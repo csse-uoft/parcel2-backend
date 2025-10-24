@@ -3,11 +3,13 @@ import jwt from "jsonwebtoken";
 import User from "../models/user.model";
 import { Request } from "express";
 import crypto from "node:crypto";
+import { UserRole } from "../constants/roles";
 
 export interface AuthToken {
     userId: string;
     username: string;
     exp?: number;
+    roles?: UserRole[];
 }
 
 export function getAuthTokenDecoded(req: Request): AuthToken | null {
@@ -39,7 +41,12 @@ export const comparePassword = async (password: string, hash: string) => {
 };
 
 export const generateToken = (data: AuthToken) => {
-    return jwt.sign({ userId: data.userId, username: data.username }, process.env.JWT_SECRET as string, { expiresIn: "7d" });
+    const payload: AuthToken = {
+        userId: data.userId,
+        username: data.username,
+        roles: data.roles,
+    };
+    return jwt.sign(payload, process.env.JWT_SECRET as string, { expiresIn: "7d" });
 };
 
 export const generatePassword = (

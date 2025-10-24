@@ -17,8 +17,9 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 export const port = process.env.PORT && Number(process.env.PORT) || 3105;
 export const frontendConfig = {
-    address: isProduction ? 'https://www.connectbuildnow.org' : 'http://localhost:3000'
+    address: isProduction ? 'https://www.connectbuildnow.org' : process.env.FRONTEND_URL || 'http://localhost:3106'
 };
+console.log("Frontend address:", frontendConfig.address);
 export const mailerConfig = {
     from: process.env.MAIL_SENDER || 'no-reply@example.com',
     mailServer: {

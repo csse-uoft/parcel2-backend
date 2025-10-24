@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import { DEFAULT_USER_ROLES, UserRole, normalizeRoles, hasRole } from "../constants/roles";
 
 export interface IUser {
     username: string;
@@ -10,6 +11,7 @@ export interface IUser {
     organizationIRI?: string | null;
     isEmailVerified?: boolean;
     isRegistrationComplete?: boolean;
+    roles?: UserRole[];
 
     // oauth2
     googleId?: string;
@@ -17,6 +19,7 @@ export interface IUser {
 
 interface IUserMethods {
     comparePassword(password: string): Promise<boolean>;
+    hasRole(role: UserRole | UserRole[]): boolean;
 }
 
 export type UserModel = mongoose.Model<IUser, {}, IUserMethods>;
@@ -31,6 +34,12 @@ const userSchema = new mongoose.Schema<IUser, UserModel, IUserMethods>({
     isEmailVerified: { type: Boolean, default: false },
     isRegistrationComplete: { type: Boolean, default: false },
     googleId: { type: String, unique: true, sparse: true },
+    roles: {
+        type: [String],
+        enum: Object.values(UserRole),
+        default: DEFAULT_USER_ROLES,
+        set: normalizeRoles,
+    },
 });
 
 // Pre-save Hook: Hash Password with Salt Before Storing
@@ -54,6 +63,11 @@ userSchema.method('comparePassword', async function (password: string) {
         return false;
     }
     return await bcrypt.compare(password, this.password);
+});
+
+userSchema.method('hasRole', function (role: UserRole | UserRole[]) {
+    const current = normalizeRoles(this.roles as UserRole[]);
+    return hasRole(current, role as UserRole | UserRole[]);
 });
 
 export default mongoose.model<IUser, UserModel>("User", userSchema);

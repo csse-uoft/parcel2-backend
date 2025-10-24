@@ -181,3 +181,54 @@ If you did not sign up for Parcel, please ignore this e-mail.`
 
     return {html, text}
 }
+
+interface InvitationTemplateArgs {
+    email: string;
+    temporaryPassword: string;
+    organizationName?: string | null;
+}
+
+export const getOrganizationInvitationTemplate = ({ email, temporaryPassword, organizationName }: InvitationTemplateArgs) => {
+    const loginUrl = `${configs.frontendConfig.address}/login`;
+    const subjectPrefix = organizationName ? `${organizationName} invited you to Parcel` : `You're invited to Parcel`;
+    const html = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${subjectPrefix}</title>
+  </head>
+  <body style="font-family: Arial, Helvetica, sans-serif; background-color: #ffffff; color: #222222;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="margin: 24px auto; padding: 24px; border: 1px solid #e5e5e5; border-radius: 8px; background-color: #ffffff;">
+            <tr>
+              <td>
+                <h1 style="font-size: 20px; font-weight: 600; margin: 0 0 12px 0;">${subjectPrefix}</h1>
+                <p style="margin: 0 0 16px 0;">Hi ${email},</p>
+                <p style="margin: 0 0 16px 0;">An account has been created for you on Parcel. Use the temporary password below to sign in and finish setting up your profile.</p>
+                <p style="margin: 0 0 16px 0;"><strong>Temporary password:</strong> ${temporaryPassword}</p>
+                <p style="margin: 0 0 24px 0;">For security, please sign in and change this password as soon as possible.</p>
+                <p style="margin: 0 0 24px 0;">
+                  <a href="${loginUrl}" style="display: inline-block; padding: 12px 18px; background-color: #00bc87; color: #ffffff; text-decoration: none; border-radius: 4px;">Sign in to Parcel</a>
+                </p>
+                <p style="margin: 0 0 8px 0;">If you were not expecting this invitation, you can safely ignore this email.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+    const text = `${subjectPrefix}
+
+An account has been created for you on Parcel.
+
+Temporary password: ${temporaryPassword}
+
+Sign in at ${loginUrl} and update your password right away. If you were not expecting this invitation, you can ignore this message.`;
+
+    return { html, text };
+};

@@ -1,6 +1,7 @@
 import User, { IUser, UserModel } from "../models/user.model";
-import {ServiceError} from "../utils/errors";
+import { ServiceError } from "../utils/errors";
 import { Organization } from "../models";
+import { normalizeRoles, UserRole } from "../constants/roles";
 
 export const getUserById = async (userId: string) => {
     return await User.findById(userId).select("-password");
@@ -17,7 +18,11 @@ export async function createUser(userData: IUser) {
         throw new ServiceError("Email already exists");
     }
 
-    const newUser = new User(userData);
+    const roles = normalizeRoles((userData.roles as UserRole[]) ?? undefined);
+    const newUser = new User({
+        ...userData,
+        roles,
+    });
     await newUser.save();
 
     return newUser;

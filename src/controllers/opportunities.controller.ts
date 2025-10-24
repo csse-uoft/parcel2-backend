@@ -1,10 +1,10 @@
-import { Request, Response, Router } from 'express';
+import { Request, Response } from 'express';
 import { finalizeUrlList, isTmpUrl } from '../services/uploads';
-import { Opportunity, OpportunityAdditionalInfo, Organization, ProjectStage } from "../models";
-import User from "../models/user.model";
+import { Opportunity, OpportunityAdditionalInfo, Organization } from "../models";
 import { getUserOrganization } from "../services/user.service";
 import { ServiceError } from "../utils/errors";
-import { getTaxonomyOptionByIri } from "../taxonomy";
+import { RequestUser } from "../middleware/auth.middleware";
+import { hasRole, UserRole } from "../constants/roles";
 
 async function attachUploads(opportunity: Opportunity, additionalInfo: any) {
     const opportunityIRIWithoutPrefix = opportunity.iri!.split(':').pop()!;
@@ -58,14 +58,13 @@ export async function createOpportunity(req: Request, res: Response) {
         opportunity.additionalInfo!.datePosted = opportunity.additionalInfo!.dateModified = new Date();
 
         // attach opportunity to the creator organization
-        const userId = (req as any).user.userId;
-        const user = await User.findById(userId);
-        if (!user || !user.organizationIRI) {
-            res.status(404).json({ message: "Organization not found (no organizationIRI)" });
+        const requestUser = (req as any).user as RequestUser;
+        if (!requestUser.organizationIRI) {
+            res.status(404).json({ message: "Organization not found (no organization linked to user)" });
             return;
         }
 
-        const organization = await Organization.findByIri<Organization>(user.organizationIRI);
+        const organization = await Organization.findByIri<Organization>(requestUser.organizationIRI);
         if (!organization) {
             res.status(404).json({ message: "Organization not found" });
             return;
@@ -97,13 +96,46 @@ export async function updateOpportunityByIri(req: Request, res: Response) {
             res.status(404).json({ message: 'Opportunity not found' });
             return;
         }
+
+        const requestUser = (req as any).user as RequestUser;
+        const isAdmin = hasRole(requestUser.roles, UserRole.ADMIN);
+
+        if (!isAdmin) {
+            try {
+                const organization = await getUserOrganization(requestUser.id);
+                const hasOpportunity = organization.opportunities?.some(op => {
+                    if (!op) return false;
+                    if (typeof op === 'string') {
+                        return op === opportunity.iri;
+                    }
+                    return op.iri === opportunity.iri;
+                });
+
+                if (!hasOpportunity) {
+                    res.status(403).json({ message: 'Forbidden: You do not have permission to update this opportunity' });
+                    return;
+                }
+            } catch (err) {
+                if (err instanceof ServiceError) {
+                    res.status(err.status).json({ message: err.message });
+                    return;
+                }
+                throw err;
+            }
+        }
+
+        if (!opportunity.additionalInfo) {
+            opportunity.additionalInfo = OpportunityAdditionalInfo.create({});
+        }
+        const additionalInfo = opportunity.additionalInfo!;
+
         // merge updates
-        Object.assign(opportunity.additionalInfo!, ai, { datePosted: opportunity.additionalInfo!.datePosted ?? new Date() });
+        Object.assign(additionalInfo, ai, { datePosted: additionalInfo.datePosted ?? new Date() });
         delete body.additionalInfo;
         Object.assign(opportunity, body);
 
-        await attachUploads(opportunity, ai);
-        opportunity.additionalInfo!.dateModified = new Date();
+    await attachUploads(opportunity, ai);
+    additionalInfo.dateModified = new Date();
 
         await opportunity.save();
 
@@ -147,8 +179,25 @@ export async function deleteOpportunityByIri(req: Request, res: Response) {
 
         await opportunity.delete({ cascade: true });
 
+        const requestUser = (req as any).user as RequestUser;
+        const isAdmin = hasRole(requestUser.roles, UserRole.ADMIN);
+
+        if (isAdmin) {
+            try {
+                const orgs = await Organization.find<Organization>({ opportunities: { $in: [opportunity.iri] } });
+                for (const org of orgs ?? []) {
+                    org.opportunities = [...(org.opportunities ?? [])].filter(iri => iri !== opportunity.iri);
+                    await org.save();
+                }
+            } catch (err) {
+                console.error('Failed to detach opportunity from organizations', err);
+            }
+            res.status(200).json({ message: 'Opportunity deleted' });
+            return;
+        }
+
         // detach opportunity from the creator organization
-        const userId = (req as any).user.userId;
+        const userId = requestUser.id;
         try {
             const organization = await getUserOrganization(userId);
 
@@ -194,7 +243,7 @@ export async function getAllOpportunities(req: Request, res: Response) {
 
 
 export async function getUserOpportunities(req: Request, res: Response) {
-    const userId = (req as any).user.userId;
+    const userId = (req as any).user.id;
 
     try {
         const organization = await getUserOrganization(userId);

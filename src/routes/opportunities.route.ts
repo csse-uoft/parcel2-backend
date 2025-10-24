@@ -5,6 +5,7 @@ import {
 } from "../controllers/opportunities.controller";
 import { searchOpportunities } from "../controllers/opportunities-search.controller";
 import { authenticate } from "../middleware/auth.middleware";
+import { requireOrgAdmin } from "../middleware/roles.middleware";
 
 const router = Router();
 
@@ -24,13 +25,13 @@ router.post('/search', searchOpportunities);
 
 router.get('/me', authenticate, getUserOpportunities);
 
-router.post('/', authenticate, createOpportunity);
+router.post('/', authenticate, requireOrgAdmin, createOpportunity);
 
-router.post('/:iri', authenticate, updateOpportunityByIri);
+router.post('/:iri', authenticate, requireOrgAdmin, updateOpportunityByIri);
 
 router.get('/:iri', authenticate, getOpportunityByIri);
 
-router.delete('/:iri', authenticate, deleteOpportunityByIri);
+router.delete('/:iri', authenticate, requireOrgAdmin, deleteOpportunityByIri);
 
 router.get('/', authenticate, getAllOpportunities);
 

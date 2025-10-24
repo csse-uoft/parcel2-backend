@@ -2,13 +2,12 @@ import { Request, Response } from "express";
 import User from "../models/user.model";
 import { Person } from "../models/person.model";
 import { Organization } from "../models/organization.model";
-import { getAuthTokenDecoded } from "../services/auth.service";
 import { getUserOrganization } from "../services/user.service";
 import { ServiceError } from "../utils/errors";
 
 export const getUserProfile = async (req: Request, res: Response) => {
     try {
-        const user = await User.findById((req as any).user.userId).select("-password");
+    const user = await User.findById((req as any).user.id).select("-password");
         const userJSON: any = user?.toJSON();
         if (user?.personIRI) {
             const person = await Person.findByIri(user.personIRI);
@@ -28,7 +27,7 @@ export const getUserProfile = async (req: Request, res: Response) => {
 
 export async function initUserProfile(req: Request, res: Response) {
     try {
-        const userId = (req as any).user.userId;
+    const userId = (req as any).user.id;
         const { person: personData } = req.body;
 
         // Validate the person object
@@ -69,7 +68,7 @@ export async function initUserProfile(req: Request, res: Response) {
 
 export async function updateUserProfile(req: Request, res: Response) {
     try {
-        const userId = (req as any).user.userId;
+    const userId = (req as any).user.id;
         const { person: personData } = req.body;
 
         // Validate the person object
@@ -103,7 +102,7 @@ export async function updateUserProfile(req: Request, res: Response) {
 }
 
 export async function updateUserOrg(req: Request, res: Response) {
-    const userId = (req as any).user.userId;
+    const userId = (req as any).user.id;
     const { organization: organizationData } = req.body;
     try {
         const user = await User.findById(userId);
@@ -134,7 +133,7 @@ export async function updateUserOrg(req: Request, res: Response) {
 }
 
 export async function getUserOrg(req: Request, res: Response) {
-    const userId = (req as any).user.userId;
+    const userId = (req as any).user.id;
     try {
         const organization = await getUserOrganization(userId);
         res.json(organization);
