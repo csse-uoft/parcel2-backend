@@ -29,7 +29,7 @@ Parcel2 Backend exposes the Express 5 API, Socket.IO gateway, and OWL-to-Stardog
    ```
    (Windows: `copy .env.template .env`)
 3. **Set environment variables**
-   - `PORT` (default 3005)
+   - `PORT` (default 3105)
    - `FRONTEND_URL`
    - `SESSION_SECRET`, `JWT_SECRET`
    - `MONGO_URI`, `REDIS_URL`
@@ -42,7 +42,7 @@ Parcel2 Backend exposes the Express 5 API, Socket.IO gateway, and OWL-to-Stardog
    ```powershell
    npm run dev
    ```
-6. Open the frontend against `http://localhost:3005` (adjust to match `PORT`).
+6. Open the frontend against `http://localhost:3106` (adjust to match your frontend port).
 7. On the initial launch the backend creates an admin user automatically, the login email is `admin@parcel.com` and the default password is logged in the terminal.
 
 The dev server uses `ts-node` to boot. On boot it validates the mailer and OAuth configuration, ensures upload directories exist, connects to Redis, MongoDB, and Stardog, seeds the admin user, and hydrates taxonomy data from `src/taxonomy`.

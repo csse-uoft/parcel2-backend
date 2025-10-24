@@ -13,14 +13,14 @@ export const sendVerificationMail = async (email: string, token: string) => {
     html,
     text,
   };
-  await new Promise((resole, reject) => {
-    console.log("http://localhost:3005/register/" + token)
+  await new Promise((resolve, reject) => {
+    console.log("http://localhost:3105/register/" + token)
     transporter.sendMail(mailOptions, function (err: any) {
       if (err) {
         reject(err);
       } else {
         console.log("email sent");
-        resole(undefined);
+        resolve(undefined);
       }
     });
   });
