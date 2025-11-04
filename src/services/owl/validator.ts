@@ -17,6 +17,9 @@ export class OntologyValidator {
             const value = (root as any)[field];
             const curPath = `${path}.${field}`;
 
+            // SKIP null/undefined values
+            if (value == null) continue;
+
             // CARDINALITY
             const count = Array.isArray(value) ? value.length : (value !== undefined ? 1 : 0);
             if (rule.max === 0 && count > 0)

@@ -3,6 +3,7 @@ import User from "../models/user.model";
 import { Organization } from "../models/organization.model";
 import { generatePassword } from "../services/auth.service";
 import { normalizeRoles } from "../constants/roles";
+import { applyOrganizationUpdates } from "../services/organization.service";
 
 export async function listUsers(req: Request, res: Response) {
     try {
@@ -21,6 +22,70 @@ export async function listOrganizations(req: Request, res: Response) {
     } catch (error) {
         console.error("listOrganizations error", error);
         res.status(500).json({ message: "Error fetching organizations" });
+    }
+}
+
+export async function updateOrganization(req: Request, res: Response) {
+    const organizationParam = req.params.organizationIri;
+    const body = req.body?.organization ?? req.body;
+
+    if (!organizationParam) {
+        res.status(400).json({ message: "Organization IRI is required" });
+        return;
+    }
+
+    if (!body || typeof body !== "object") {
+        res.status(400).json({ message: "Organization payload is required" });
+        return;
+    }
+
+    const organizationIri = decodeURIComponent(organizationParam);
+
+    try {
+        const organization = await Organization.findByIri<Organization>(organizationIri);
+        if (!organization) {
+            res.status(404).json({ message: "Organization not found" });
+            return;
+        }
+
+        applyOrganizationUpdates(organization, body);
+        await organization.save();
+
+        res.json(organization.toJSON());
+    } catch (error) {
+        console.error("updateOrganization error", error);
+        res.status(500).json({ message: "Error updating organization" });
+    }
+}
+
+export async function deleteOrganization(req: Request, res: Response) {
+    const organizationParam = req.params.organizationIri;
+
+    if (!organizationParam) {
+        res.status(400).json({ message: "Organization IRI is required" });
+        return;
+    }
+
+    const organizationIri = decodeURIComponent(organizationParam);
+
+    try {
+        const organization = await Organization.findByIri<Organization>(organizationIri);
+        if (!organization) {
+            res.status(404).json({ message: "Organization not found" });
+            return;
+        }
+
+        const memberCount = await User.countDocuments({ organizationIRI: organizationIri });
+        if (memberCount > 0) {
+            res.status(409).json({ message: "Cannot delete an organization that has members" });
+            return;
+        }
+
+        await organization.delete({ cascade: true });
+        res.json({ message: "Organization deleted" });
+    } catch (error) {
+        console.error("deleteOrganization error", error);
+        res.status(500).json({ message: "Error deleting organization" });
     }
 }
 

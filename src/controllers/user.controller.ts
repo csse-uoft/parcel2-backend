@@ -92,7 +92,10 @@ export async function updateUserProfile(req: Request, res: Response) {
         }
 
         await person.save();
-        user!.personIRI = person.iri;
+        if (user) {
+            user.personIRI = person.iri;
+            await user.save();
+        }
 
         res.json(person);
     } catch (error) {
@@ -139,11 +142,52 @@ export async function getUserOrg(req: Request, res: Response) {
         res.json(organization);
     } catch (err) {
         if (err instanceof ServiceError && err.status === 404) {
-            res.status(404).json({ message: "User organization not found:" + err.message });
+            res.status(404).json({ message: "User organization not found" });
             return;
         }
         console.error("Error in getUserOrganization:", err);
         res.status(500).json({ message: "Error fetching user organization" });
         return;
+    }
+}
+
+export async function changeUserPassword(req: Request, res: Response) {
+    const userId = (req as any).user.id;
+    const { currentPassword, newPassword } = req.body ?? {};
+
+    try {
+        if (typeof newPassword !== "string" || newPassword.length < 8) {
+            res.status(400).json({ message: "New password must be at least 8 characters." });
+            return;
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            res.status(404).json({ message: "User not found" });
+            return;
+        }
+
+        const hasExistingPassword = !!user.password;
+
+        if (hasExistingPassword) {
+            if (typeof currentPassword !== "string" || currentPassword.length === 0) {
+                res.status(400).json({ message: "Current password is required." });
+                return;
+            }
+
+            const matches = await user.comparePassword(currentPassword);
+            if (!matches) {
+                res.status(400).json({ message: "Current password is incorrect." });
+                return;
+            }
+        }
+
+        user.password = newPassword;
+        await user.save();
+
+        res.json({ message: "Password updated successfully." });
+    } catch (error) {
+        console.error("Error changing password:", error);
+        res.status(500).json({ message: "Error updating password" });
     }
 }
