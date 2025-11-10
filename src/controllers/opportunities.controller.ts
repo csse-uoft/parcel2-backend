@@ -158,6 +158,34 @@ export async function getOpportunityByIri(req: Request, res: Response) {
             return;
         }
 
+        let organizationSummary: { iri: string; name?: string } | null = null;
+        try {
+            const organizations = await Organization.findAll<Organization>(500, 0);
+            const owner = organizations?.find((org: Organization) => {
+                const opportunities = org.opportunities ?? [];
+                return opportunities.some((entry: any) => {
+                    if (!entry) return false;
+                    if (typeof entry === 'string') return entry === opportunity.iri;
+                    if (typeof entry === 'object' && entry.iri) return entry.iri === opportunity.iri;
+                    return false;
+                });
+            });
+
+            const ownerIri = owner?.iri ?? undefined;
+            if (owner && ownerIri) {
+                organizationSummary = {
+                    iri: ownerIri,
+                    name: owner.name ?? owner.tradeName ?? owner.briefDescription ?? undefined,
+                };
+            }
+        } catch (orgError) {
+            console.error('Failed to determine opportunity organization', orgError);
+        }
+
+        if (organizationSummary) {
+            (opportunity as any).organization = organizationSummary;
+        }
+
         res.status(200).json(opportunity);
 
     } catch (error) {

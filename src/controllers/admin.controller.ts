@@ -137,6 +137,8 @@ export async function resetUserPassword(req: Request, res: Response) {
 
         const newPassword = generatePassword();
         user.password = newPassword;
+        user.passwordResetToken = null;
+        user.passwordResetExpires = null;
         await user.save();
 
         res.json({ message: "Password reset", newPassword });

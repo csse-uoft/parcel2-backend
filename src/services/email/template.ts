@@ -232,3 +232,56 @@ Sign in at ${loginUrl} and update your password right away. If you were not expe
 
     return { html, text };
 };
+
+interface PasswordResetTemplateArgs {
+    email: string;
+    resetLink: string;
+    expiresMinutes: number;
+}
+
+export const getPasswordResetTemplate = ({ email, resetLink, expiresMinutes }: PasswordResetTemplateArgs) => {
+    const expiresText = expiresMinutes >= 60
+        ? `${expiresMinutes / 60} hour${expiresMinutes === 60 ? '' : 's'}`
+        : `${expiresMinutes} minute${expiresMinutes === 1 ? '' : 's'}`;
+
+    const html = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Reset your Parcel password</title>
+  </head>
+  <body style="font-family: Arial, Helvetica, sans-serif; background-color: #ffffff; color: #222222;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="margin: 24px auto; padding: 24px; border: 1px solid #e5e5e5; border-radius: 8px; background-color: #ffffff;">
+            <tr>
+              <td>
+                <h1 style="font-size: 20px; font-weight: 600; margin: 0 0 12px 0;">Reset your Parcel password</h1>
+                <p style="margin: 0 0 16px 0;">We received a request to reset the password for the account associated with ${email}.</p>
+                <p style="margin: 0 0 16px 0;">If you made this request, click the button below to choose a new password. This link will expire in ${expiresText}.</p>
+                <p style="margin: 0 0 24px 0;">
+                  <a href="${resetLink}" style="display: inline-block; padding: 12px 18px; background-color: #00bc87; color: #ffffff; text-decoration: none; border-radius: 4px;">Reset password</a>
+                </p>
+                <p style="margin: 0 0 16px 0;">If you did not request a password reset, you can ignore this message and your password will stay the same.</p>
+                <p style="margin: 24px 0 0 0; font-size: 12px; color: #666666;">Need help? Visit <a href="${configs.frontendConfig.address}/help" style="color: #00bc87; text-decoration: none;">our help center</a>.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+    const text = `Reset your Parcel password
+
+We received a request to reset the password for the account associated with ${email}.
+
+Use the link below to choose a new password. The link expires in ${expiresText}.
+${resetLink}
+
+If you did not request a password reset, you can safely ignore this message.`;
+
+    return { html, text };
+};

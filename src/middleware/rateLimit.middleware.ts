@@ -15,3 +15,11 @@ export const registerLimiter = rateLimit({
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
     message: { message: "Too many registration attempts. Please try again later." },
 });
+
+export const passwordResetLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: 10,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { message: "Too many password reset attempts. Please try again later." },
+});

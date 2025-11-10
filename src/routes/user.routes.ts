@@ -6,7 +6,10 @@ import {
     initUserProfile,
     updateUserOrg,
     updateUserProfile,
-    changeUserPassword
+    changeUserPassword,
+    getOpportunityFavourites,
+    addOpportunityFavourite,
+    removeOpportunityFavourite,
 } from "../controllers/user.controller";
 
 const router = express.Router();
@@ -17,5 +20,8 @@ router.post("/profile", authenticate, updateUserProfile);
 router.get("/profile/org", authenticate, getUserOrg);
 router.post("/profile/org", authenticate, updateUserOrg);
 router.post("/profile/password", authenticate, changeUserPassword);
+router.get("/user/favourites", authenticate, getOpportunityFavourites);
+router.post("/user/favourites", authenticate, addOpportunityFavourite);
+router.delete("/user/favourites/:opportunityIri", authenticate, removeOpportunityFavourite);
 
 export default router;

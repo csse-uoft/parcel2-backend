@@ -5,10 +5,14 @@ import {
     login,
     logout,
     register,
+    requestPasswordReset,
+    resetPassword,
     validateLogin,
+    validatePasswordReset,
+    validatePasswordResetRequest,
     validateRegistration, verifyEmail
 } from "../controllers/auth.controller";
-import {loginLimiter, registerLimiter} from "../middleware/rateLimit.middleware";
+import {loginLimiter, passwordResetLimiter, registerLimiter} from "../middleware/rateLimit.middleware";
 import passport from "passport";
 import { frontendConfig } from "../config/configs";
 import jwt from "jsonwebtoken";
@@ -19,6 +23,8 @@ const router = express.Router();
 router.post("/login", loginLimiter, validateLogin, login);
 router.post("/register/verify/:token", validateRegistration, verifyEmail);
 router.post("/register", registerLimiter, validateRegistration, register);
+router.post("/password/forgot", passwordResetLimiter, validatePasswordResetRequest, requestPasswordReset);
+router.post("/password/reset", validatePasswordReset, resetPassword);
 
 router.post("/logout", logout);
 router.get("/me", getCurrentUser);

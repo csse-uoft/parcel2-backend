@@ -2,6 +2,11 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import { DEFAULT_USER_ROLES, UserRole, normalizeRoles, hasRole } from "../constants/roles";
 
+export interface IOpportunityFavourite {
+    opportunityIri: string;
+    addedAt?: Date;
+}
+
 export interface IUser {
     username: string;
     password?: string;
@@ -12,9 +17,12 @@ export interface IUser {
     isEmailVerified?: boolean;
     isRegistrationComplete?: boolean;
     roles?: UserRole[];
+    passwordResetToken?: string | null;
+    passwordResetExpires?: Date | null;
 
     // oauth2
     googleId?: string;
+    opportunityFavourites?: IOpportunityFavourite[];
 }
 
 interface IUserMethods {
@@ -23,6 +31,14 @@ interface IUserMethods {
 }
 
 export type UserModel = mongoose.Model<IUser, {}, IUserMethods>;
+
+const opportunityFavouriteSchema = new mongoose.Schema<IOpportunityFavourite>(
+    {
+        opportunityIri: { type: String, required: true },
+        addedAt: { type: Date, default: Date.now },
+    },
+    { _id: false },
+);
 
 const userSchema = new mongoose.Schema<IUser, UserModel, IUserMethods>({
     username: { type: String, unique: true }, // not required
@@ -40,6 +56,9 @@ const userSchema = new mongoose.Schema<IUser, UserModel, IUserMethods>({
         default: DEFAULT_USER_ROLES,
         set: normalizeRoles,
     },
+    passwordResetToken: { type: String, default: null },
+    passwordResetExpires: { type: Date, default: null },
+    opportunityFavourites: { type: [opportunityFavouriteSchema], default: [] },
 });
 
 // Pre-save Hook: Hash Password with Salt Before Storing

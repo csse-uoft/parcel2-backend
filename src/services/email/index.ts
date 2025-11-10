@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { getOrganizationInvitationTemplate, getVerificationTemplate } from './template';
+import { getOrganizationInvitationTemplate, getVerificationTemplate, getPasswordResetTemplate } from './template';
 import { mailerConfig } from '../../config/configs';
 
 const transporter = nodemailer.createTransport(mailerConfig.mailServer);
@@ -38,6 +38,33 @@ export const sendOrganizationInvitationMail = async ({ email, temporaryPassword,
     from: mailerConfig.from,
     to: email,
     subject: organizationName ? `${organizationName} invited you to Parcel` : 'Parcel account invitation',
+    html,
+    text,
+  };
+
+  await new Promise<void>((resolve, reject) => {
+    transporter.sendMail(mailOptions, (err: any) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve();
+    });
+  });
+};
+
+interface PasswordResetMailOptions {
+  email: string;
+  resetLink: string;
+  expiresMinutes: number;
+}
+
+export const sendPasswordResetMail = async ({ email, resetLink, expiresMinutes }: PasswordResetMailOptions) => {
+  const { html, text } = getPasswordResetTemplate({ email, resetLink, expiresMinutes });
+  const mailOptions = {
+    from: mailerConfig.from,
+    to: email,
+    subject: 'Reset your Parcel password',
     html,
     text,
   };

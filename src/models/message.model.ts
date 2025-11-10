@@ -1,11 +1,27 @@
-import mongoose from "mongoose";
+import mongoose, { Document, Schema, Types } from "mongoose";
 
-const messageSchema = new mongoose.Schema({
-    room: { type: String, required: true },
+export interface ChatMessage {
+    room: string;
+    roomId: Types.ObjectId;
+    sender: string;
+    senderId: Types.ObjectId;
+    text?: string | null;
+    fileUrl?: string | null;
+    timestamp: Date;
+}
+
+export interface ChatMessageDocument extends ChatMessage, Document {}
+
+const messageSchema = new Schema<ChatMessageDocument>({
+    room: { type: String, required: true, index: true },
+    roomId: { type: Schema.Types.ObjectId, ref: "ChatRoom", required: true, index: true },
     sender: { type: String, required: true },
+    senderId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     text: { type: String, default: null },
     fileUrl: { type: String, default: null },
-    timestamp: { type: Date, default: Date.now },
+    timestamp: { type: Date, default: Date.now, index: true },
 });
 
-export default mongoose.model("Message", messageSchema);
+messageSchema.index({ roomId: 1, timestamp: -1 });
+
+export default mongoose.model<ChatMessageDocument>("Message", messageSchema);

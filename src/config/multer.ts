@@ -24,12 +24,45 @@ export const uploadImage = multer({
 });
 
 const ALLOWED_FILE = new Set([
+    // document types
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.ms-excel',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'text/plain',
+
+    // presentation types
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+
+    // rich text format
+    'application/rtf',
+
+    // All MS Office MIME types
+    'application/vnd.ms-office',
+    'application/vnd.ms-word.document.macroEnabled.12',
+    'application/vnd.ms-excel.sheet.macroEnabled.12',
+    'application/vnd.ms-powerpoint.presentation.macroEnabled.12',
+    
+
+    // compressed files
+    'application/zip',
+    'application/x-rar-compressed',
+
+    // audio files
+    'audio/mpeg',
+    'audio/wav',
+    'audio/ogg',
+
+    // allow all image types
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml',
+    'image/bmp',
+    'image/tiff',
 ]);
 
 export const uploadFile = multer({

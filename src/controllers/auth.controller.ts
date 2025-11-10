@@ -5,8 +5,9 @@ import { body, validationResult } from "express-validator";
 import { createUser } from "../services/user.service";
 import { ServiceError } from "../utils/errors";
 import { generateToken, getAuthTokenDecoded } from "../services/auth.service";
-import { sendVerificationMail } from "../services/email";
+import { sendVerificationMail, sendPasswordResetMail } from "../services/email";
 import { configs } from "../config/configs";
+import crypto from "crypto";
 
 export const validateLogin = [
     body("username").notEmpty().withMessage("Username is required"),
@@ -113,6 +114,25 @@ export const validateRegistration = [
     body("email").isEmail().withMessage("Invalid email address"),
 ];
 
+export const validatePasswordResetRequest = [
+    body("email").isEmail().withMessage("Valid email is required"),
+];
+
+export const validatePasswordReset = [
+    body("token").notEmpty().withMessage("Reset token is required"),
+    body("password")
+        .isLength({ min: 8 }).withMessage("Password must be at least 8 characters")
+        .isStrongPassword({
+            minLength: 8,
+            minUppercase: 1,
+            minLowercase: 1,
+            minNumbers: 1,
+            minSymbols: 1,
+        }).withMessage("Password must contain at least one uppercase letter, one lowercase letter, one number and one special character"),
+];
+
+const escapeRegExp = (value: string) => value.replace(/([.*+?^${}()|\[\]\\])/g, "\\$1");
+
 
 export const register = async (req: Request, res: Response) => {
     const errors = validationResult(req);
@@ -139,6 +159,89 @@ export const register = async (req: Request, res: Response) => {
         }
     }
 }
+
+export const requestPasswordReset = async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        res.status(400).json({ errors: errors.array() });
+        return;
+    }
+
+    const rawEmail = String(req.body.email ?? "").trim();
+    const message = "If the email is registered, a reset link has been sent.";
+
+    if (!rawEmail) {
+        res.status(400).json({ message: "Email is required" });
+        return;
+    }
+
+    try {
+        const emailRegex = new RegExp(`^${escapeRegExp(rawEmail)}$`, "i");
+        const user = await User.findOne({ email: emailRegex });
+
+        if (!user) {
+            res.status(200).json({ message });
+            return;
+        }
+
+        const token = crypto.randomBytes(32).toString("hex");
+        const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+        user.passwordResetToken = tokenHash;
+        user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
+        await user.save();
+
+        const resetLink = `${configs.frontendConfig.address}/reset-password?token=${token}`;
+        await sendPasswordResetMail({
+            email: user.email,
+            resetLink,
+            expiresMinutes: 60,
+        });
+
+        res.status(200).json({ message });
+    } catch (error) {
+        console.error("requestPasswordReset error", error);
+        res.status(500).json({ message: "Unable to process password reset request" });
+    }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        res.status(400).json({ errors: errors.array() });
+        return;
+    }
+
+    const { token, password } = req.body ?? {};
+
+    if (!token || typeof token !== "string") {
+        res.status(400).json({ message: "Reset token is required" });
+        return;
+    }
+
+    try {
+        const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+        const user = await User.findOne({
+            passwordResetToken: tokenHash,
+            passwordResetExpires: { $gt: new Date() },
+        });
+
+        if (!user) {
+            res.status(400).json({ message: "Reset link is invalid or has expired" });
+            return;
+        }
+
+        user.password = password;
+        user.passwordResetToken = null;
+        user.passwordResetExpires = null;
+        await user.save();
+
+        res.json({ message: "Password reset successfully" });
+    } catch (error) {
+        console.error("resetPassword error", error);
+        res.status(500).json({ message: "Unable to reset password" });
+    }
+};
 
 export async function verifyEmail(req: Request, res: Response) {
     const { token } = req.query;
