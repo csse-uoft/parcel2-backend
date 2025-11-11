@@ -129,7 +129,7 @@ await ada.delete({ cascade: true });
 Validation runs on every `save()`; violations raise an error before any
 queries are sent.
 
----
+
 
 ## Prefix management
 
@@ -159,4 +159,37 @@ writeFileSync(
 ```
 
 
-## ORM Class Query (TODO)
+## ORM Class Query
+
+`OwlClass.find(where?, options?)` returns fully hydrated instances that match RDF triples emitted for the mapped class. Filters use the TypeScript property names from your `@OntologyProp` declarations.
+
+```ts
+// Basic field filters (scalar + $in)
+const openCalls = await Opportunity.find({
+  status: "Open",
+  iri: { $in: ["ex:opp_1", "ex:opp_3"] },
+});
+
+// Nested filters traverse object properties declared with onClass
+const cityLeads = await Opportunity.find({
+  location: {
+    addressLocality: "Toronto",
+  },
+});
+
+// Combine with query options (limit/offset/reasoning) and populate controls
+const minimal = await Opportunity.find(
+  { iri: { $in: ["ex:opp_2"] } },
+  {
+    limit: 1,
+    reasoning: true,
+    noPopulates: ["partners.organization.opportunities"],
+  }
+);
+```
+
+### Options reference
+- `limit`, `offset`, `reasoning`, `onData`, `onVariables` mirror the underlying Stardog query parameters.
+- `noPopulates` (string[]): skip hydrating the matching property paths; use `*` as a wildcard segment and omit numeric indexes. Example: `partners.organization.*` avoids loading any nested organization fields.
+- Options are depth-aware: recursive lookups reuse the same `noPopulates` rules, preventing cycles like `Opportunity.partners[].organization.opportunities` when they are not needed by the caller.
+

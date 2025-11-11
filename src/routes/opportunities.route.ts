@@ -6,6 +6,7 @@ import {
 import { searchOpportunities } from "../controllers/opportunities-search.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { requireOrgAdmin } from "../middleware/roles.middleware";
+import { listCallForProposalsForOpportunity } from "../controllers/call-for-proposals.controller";
 
 const router = Router();
 
@@ -30,6 +31,8 @@ router.post('/', authenticate, requireOrgAdmin, createOpportunity);
 router.post('/:iri', authenticate, requireOrgAdmin, updateOpportunityByIri);
 
 router.get('/:iri', authenticate, getOpportunityByIri);
+
+router.get('/:iri/call-for-proposals', authenticate, listCallForProposalsForOpportunity);
 
 router.delete('/:iri', authenticate, requireOrgAdmin, deleteOpportunityByIri);
 

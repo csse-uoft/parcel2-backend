@@ -4,6 +4,7 @@ import { authenticate } from "../middleware/auth.middleware";
 import { requireAdmin } from "../middleware/roles.middleware";
 import {
     assignUserOrganization,
+    deleteUserAccount,
     deleteOrganization,
     listOrganizations,
     listUsers,
@@ -23,6 +24,7 @@ router.delete('/organizations/:organizationIri', deleteOrganization);
 router.post('/users/:userId/organization', assignUserOrganization);
 router.post('/users/:userId/reset-password', resetUserPassword);
 router.post('/users/:userId/roles', updateUserRoles);
+router.delete('/users/:userId', deleteUserAccount);
 
 router.post('/cleanup-tmp', async (req, res) => {
     const { hours = 24, dryRun = false, verbose = true } = req.body ?? {};

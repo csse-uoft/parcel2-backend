@@ -14,8 +14,8 @@ import { NamedNode } from "rdf-data-factory";
 // Helper types
 type AllowSpec<V> =
     V extends Array<infer U> ? Array<AllowSpec<U>> :
-        V extends object ? InitWithSpec<V> | NamedNode : // allow nested classes or an IRI
-            V | LiteralSpec; // allow primitive values or LiteralSpec
+    V extends object ? InitWithSpec<V> | NamedNode : // allow nested classes or an IRI
+    V | LiteralSpec; // allow primitive values or LiteralSpec
 
 export type InitWithSpec<T> = Partial<{
     [K in keyof T]: AllowSpec<T[K]>;
@@ -54,6 +54,55 @@ type IriFilter = string | NamedNode | { $eq: string | NamedNode } | { $in: Array
 // or another nested Where for object properties (onClass).
 export type Where<T> =
     Partial<Record<keyof T, FieldFilter | Record<string, any>> | Record<"iri" | "@id" | "@iri", IriFilter>>;
+
+
+export interface FindOptions extends Omit<StardogQueryParams, "queryString"> {
+    noPopulates?: string[];
+}
+
+type PopulateContext = {
+    noPopulateRules: string[][];
+};
+
+function normalizeRulePath(rule: string): string[] {
+    const segments = rule
+        .split(".")
+        .map(seg => seg.trim())
+        .filter(seg => seg.length > 0)
+        .filter(seg => !/^\d+$/.test(seg));
+
+    if (segments.length > 1 && /^[A-Z]/.test(segments[0])) {
+        segments.shift();
+    }
+
+    return segments;
+}
+
+function buildPopulateContext(noPopulates?: string[]): PopulateContext | undefined {
+    if (!noPopulates?.length) return undefined;
+
+    const rules = noPopulates
+        .map(normalizeRulePath)
+        .filter(rule => rule.length > 0);
+
+    return rules.length ? { noPopulateRules: rules } : undefined;
+}
+
+function shouldSkipPopulate(path: string[], ctx?: PopulateContext): boolean {
+    if (!ctx?.noPopulateRules?.length) return false;
+
+    return ctx.noPopulateRules.some(rule => {
+        if (!rule.length || rule.length > path.length) return false;
+
+        for (let idx = 0; idx < rule.length; idx += 1) {
+            const expected = rule[idx];
+            if (expected === "*") continue;
+            if (expected !== path[idx]) return false;
+        }
+
+        return true;
+    });
+}
 
 
 const IRI = Symbol("owlInstanceIri"); // private slot name
@@ -97,70 +146,95 @@ export class OwlClass<TSelf extends object = any> {
      */
     static async findByIri<T extends OwlClass>(
         iri: string,
-        opts: Omit<StardogQueryParams, "queryString"> = {}
+        opts: FindOptions = {},
+        activeHydrations?: Map<string, OwlClass<any>>,
+        populateCtx?: PopulateContext,
+        pathSegments: string[] = []
     ): Promise<T | null> {
 
         const abs = PM.ensureExpanded(iri);
+        const active = activeHydrations ?? new Map<string, OwlClass<any>>();
+        const existing = active.get(abs);
+        if (existing) {
+            return existing as T;
+        }
+
+        const { noPopulates, ...queryOpts } = opts;
+        const ctx = populateCtx ?? buildPopulateContext(noPopulates);
+
+        const queryParams = queryOpts as Omit<StardogQueryParams, "queryString">;
         const rows = await executeSparqlQuery({
-            ...opts,
+            ...queryParams,
             queryString: `SELECT ?p ?o WHERE { <${abs}> ?p ?o }`
         });
         if (!rows?.length) return null;
 
         const meta = getClassMeta(this.prototype);
-        const instance = new this() as any;
+        const instance = new this() as T;
+        const target = instance as any;
+        instance.__setIri(PM.ensurePrefixed(iri));
+        active.set(abs, instance);
         const pred2prop: Record<string, string> = {};
 
-        for (const [prop, curie] of Object.entries(meta.propIris)) {
-            pred2prop[PM.ensureExpanded(curie)] = prop;
-        }
-
-        const bucket: Record<string, any[]> = {};
-        for (const row of rows) {
-            const pIri = (row.p as RDF.NamedNode).value;
-            const termType = (row.o as RDF.Term).termType;
-            const tsProp = pred2prop[pIri];
-            if (!tsProp) continue;
-            const restr = meta.propRestr[tsProp];
-
-            let val;
-            if (termType === "NamedNode") {
-                if (meta.propRestr[tsProp]?.onClass === 'owl:Thing') {
-                    val = new NamedNode((row.o as RDF.NamedNode).value);
-                } else {
-                    val = await termToJs(row.o as RDF.Term, restr);
-                }
-            } else if (termType === "Literal") {
-                val = await termToJs(row.o as RDF.Term, restr);
-            } else {
-                // ignore other term types (e.g. BlankNode)
-                console.warn(`Ignoring unsupported term type ${termType} for property ${pIri}`);
+        try {
+            for (const [prop, curie] of Object.entries(meta.propIris)) {
+                pred2prop[PM.ensureExpanded(curie)] = prop;
             }
-            bucket[tsProp] = (bucket[tsProp] ?? []).concat(val);
 
-        }
+            const bucket: Record<string, any[]> = {};
+            for (const row of rows) {
+                const pIri = (row.p as RDF.NamedNode).value;
+                const termType = (row.o as RDF.Term).termType;
+                const tsProp = pred2prop[pIri];
+                if (!tsProp) continue;
+                const propertyPath = pathSegments.concat(tsProp);
+                if (shouldSkipPopulate(propertyPath, ctx)) continue;
+                const restr = meta.propRestr[tsProp];
 
-        for (const [prop, vals] of Object.entries(bucket)) {
-            // Check if the property is restricted to a single value
-            const single = meta.propRestr[prop]?.max === 1 || meta.propRestr[prop]?.exactly === 1;
-            instance[prop] = single ? vals[0] : vals;
+                let val;
+                if (termType === "NamedNode") {
+                    if (meta.propRestr[tsProp]?.onClass === 'owl:Thing') {
+                        val = new NamedNode((row.o as RDF.NamedNode).value);
+                    } else {
+                        val = await termToJs(row.o as RDF.Term, restr, opts, active, ctx, propertyPath);
+                    }
+                } else if (termType === "Literal") {
+                    val = await termToJs(row.o as RDF.Term, restr, opts, active, ctx, propertyPath);
+                } else {
+                    // ignore other term types (e.g. BlankNode)
+                    console.warn(`Ignoring unsupported term type ${termType} for property ${pIri}`);
+                }
+                bucket[tsProp] = (bucket[tsProp] ?? []).concat(val);
+            }
+
+            for (const [prop, vals] of Object.entries(bucket)) {
+                // Check if the property is restricted to a single value
+                const single = meta.propRestr[prop]?.max === 1 || meta.propRestr[prop]?.exactly === 1;
+                target[prop] = single ? vals[0] : vals;
+            }
+
+            return instance;
+        } finally {
+            active.delete(abs);
         }
-        instance.__setIri(PM.ensurePrefixed(iri));
-        return instance;
     }
 
     static async findByIris<T extends OwlClass>(
         iris: string[],
-        opts: Omit<StardogQueryParams, "queryString"> = {}
+        opts: FindOptions = {}
     ): Promise<T[]> {
         if (!iris?.length) return [];
         return this.find<T>({ iri: { "$in": iris } }, opts);
     }
 
-    static async findAll<T extends OwlClass>(limit: number = 20, offset: number = 0): Promise<T[]> {
+    static async findAll<T extends OwlClass>(limit: number = 20, offset: number = 0, opts: FindOptions = {}): Promise<T[]> {
         const meta = getClassMeta(this.prototype);
         const classIri = PM.ensureExpanded(meta.classIri);
+        const { noPopulates, ...queryOpts } = opts;
+        const populateCtx = buildPopulateContext(noPopulates);
+        const queryParams = queryOpts as Omit<StardogQueryParams, "queryString">;
         const rows = await executeSparqlQuery({
+            ...queryParams,
             queryString: `SELECT ?iri WHERE { ?iri a <${classIri}> } LIMIT ${limit} OFFSET ${offset}`,
         });
 
@@ -169,7 +243,7 @@ export class OwlClass<TSelf extends object = any> {
         const instances: T[] = [];
         for (const row of rows) {
             const iri = (row.iri as RDF.NamedNode).value;
-            const instance = await this.findByIri<T>(iri);
+            const instance = await this.findByIri<T>(iri, opts, undefined, populateCtx);
             if (instance) instances.push(instance);
         }
         return instances;
@@ -177,7 +251,7 @@ export class OwlClass<TSelf extends object = any> {
 
     static async findOne<T extends OwlClass>(
         where: Where<T> = {},
-        opts: Omit<StardogQueryParams, "queryString"> = {}
+        opts: FindOptions = {}
     ): Promise<T | null> {
         const results = await this.find(where, { ...opts, limit: 1 });
         return results.length > 0 ? results[0] : null;
@@ -185,7 +259,7 @@ export class OwlClass<TSelf extends object = any> {
 
     static async find<T extends OwlClass>(
         where: Where<T> = {},
-        opts: Omit<StardogQueryParams, "queryString"> = {}
+        opts: FindOptions = {}
     ): Promise<T[]> {
         // quick out on empty $in arrays
         for (const v of Object.values(where ?? {})) {
@@ -196,6 +270,8 @@ export class OwlClass<TSelf extends object = any> {
 
         const meta = getClassMeta(this.prototype);
         const classAbs = PM.ensureExpanded(meta.classIri);
+        const { noPopulates, ...queryOpts } = opts;
+        const populateCtx = buildPopulateContext(noPopulates);
 
         // Map TS prop -> absolute predicate IRI
         const prop2predAbs: Record<string, string> = {};
@@ -386,13 +462,14 @@ SELECT DISTINCT ?s WHERE {
   ${filters.join("\n  ")}
 }`;
         console.log(query);
-        const rows = await executeSparqlQuery({ ...opts, queryString: query });
+    const queryParams = queryOpts as Omit<StardogQueryParams, "queryString">;
+    const rows = await executeSparqlQuery({ ...queryParams, queryString: query });
         if (!rows?.length) return [];
 
         const out: T[] = [];
         for (const r of rows) {
             const iriAbs = r.s.value;
-            const inst = await this.findByIri<T>(iriAbs, opts);
+            const inst = await this.findByIri<T>(iriAbs, opts, undefined, populateCtx);
             if (inst) out.push(inst);
         }
         return out;
@@ -499,13 +576,24 @@ SELECT DISTINCT ?s WHERE {
     }
 
     toJSON(): Record<string, any> {
+        // use WeakSet to track seen objects and avoid cycles
+        const seen = new WeakSet<object>();
+        seen.add(this);
+        return this.__toJSON(seen, [this.constructor.name]);
+    }
+
+    protected __toJSON(seen: WeakSet<object>, path: Array<string | number>): Record<string, any> {
         const result: Record<string, any> = {};
         if (this.iri) {
             result.iri = this.iri;
         }
 
         for (const [key, value] of Object.entries(this)) {
-            result[key] = serializeValue(value);
+            if (key === 'iri') continue;
+            const serialized = serializeValue(value, seen, path.concat(key));
+            if (serialized !== undefined) {
+                result[key] = serialized;
+            }
         }
 
         return result;
@@ -553,8 +641,13 @@ SELECT DISTINCT ?s WHERE {
  */
 async function termToJs(
     term: RDF.Term,
-    restriction?: { onClass?: string }
+    restriction: { onClass?: string } | undefined,
+    opts: FindOptions,
+    activeHydrations: Map<string, OwlClass<any>>,
+    populateCtx: PopulateContext | undefined,
+    path: string[]
 ): Promise<any> {
+    const { noPopulates: _noPopulates, ...queryOpts } = opts;
 
     // literals
     if (term.termType === "Literal") {
@@ -600,7 +693,9 @@ async function termToJs(
         let ctor: any = wanted ? CLASS_REGISTRY.get(wanted) : undefined;
 
         if (!ctor) {
+            const queryParams = queryOpts as Omit<StardogQueryParams, "queryString">;
             const tRows = await executeSparqlQuery({
+                ...queryParams,
                 queryString: `SELECT ?t WHERE { <${absIri}> a ?t } LIMIT 1`
             });
             const tIri = tRows?.[0]?.t?.value;
@@ -608,7 +703,7 @@ async function termToJs(
         }
 
         if (ctor && ctor.prototype instanceof OwlClass)
-            return (ctor as typeof OwlClass).findByIri(absIri);
+            return (ctor as typeof OwlClass).findByIri(absIri, opts, activeHydrations, populateCtx, path);
 
         return absIri; // unknown type → raw IRI
     }
@@ -617,14 +712,36 @@ async function termToJs(
     return term.value;
 }
 
-function serializeValue(val: any): any {
-    if (val instanceof OwlClass) {
-        return val.toJSON();
-    } else if (Array.isArray(val)) {
-        return val.map(serializeValue);
-    } else if (val?.termType === "NamedNode") {
-        return val.value;
-    } else {
+function serializeValue(val: any, seen: WeakSet<object>, path: Array<string | number>): any {
+    if (val === undefined) return undefined;
+
+    let addedToSeen = false;
+    if (val && typeof val === 'object') {
+        if (seen.has(val)) {
+            console.warn(`OwlClass.toJSON: detected cyclic reference at ${path.join('.')}; omitting nested value.`);
+            return undefined;
+        }
+        seen.add(val);
+        addedToSeen = true;
+    }
+
+    try {
+        if (val instanceof OwlClass) {
+            return (val as any).__toJSON(seen, path);
+        }
+        if (Array.isArray(val)) {
+            const out = val
+                .map((item, index) => serializeValue(item, seen, path.concat(index)))
+                .filter((item) => item !== undefined);
+            return out;
+        }
+        if (val?.termType === "NamedNode") {
+            return val.value;
+        }
         return val;
+    } finally {
+        if (addedToSeen) {
+            seen.delete(val);
+        }
     }
 }

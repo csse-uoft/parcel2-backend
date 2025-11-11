@@ -75,6 +75,14 @@ userSchema.pre("save", async function (next) {
     next();
 });
 
+// Pre-save Hook: Clean up personIRI if empty string or null
+userSchema.pre("save", function (next) {
+    if (this.isModified("personIRI") && (this.personIRI === null || this.personIRI === "")) {
+        this.personIRI = undefined;
+    }
+    next();
+});
+
 // Password Comparison Method
 userSchema.method('comparePassword', async function (password: string) {
     if (!this.password) {

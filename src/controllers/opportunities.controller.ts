@@ -134,8 +134,8 @@ export async function updateOpportunityByIri(req: Request, res: Response) {
         delete body.additionalInfo;
         Object.assign(opportunity, body);
 
-    await attachUploads(opportunity, ai);
-    additionalInfo.dateModified = new Date();
+        await attachUploads(opportunity, ai);
+        additionalInfo.dateModified = new Date();
 
         await opportunity.save();
 
@@ -152,26 +152,17 @@ export async function getOpportunityByIri(req: Request, res: Response) {
     const opportunityIri = req.params.iri;
 
     try {
-        const opportunity = await Opportunity.findByIri<Opportunity>(opportunityIri);
+        const opportunity = await Opportunity.findByIri<Opportunity>(opportunityIri, { noPopulates: ['partners.organization.opportunities'] });
         if (!opportunity) {
             res.status(404).json({ message: 'Opportunity not found' });
             return;
         }
 
         let organizationSummary: { iri: string; name?: string } | null = null;
+        let ownerIri: string | null = null;
         try {
-            const organizations = await Organization.findAll<Organization>(500, 0);
-            const owner = organizations?.find((org: Organization) => {
-                const opportunities = org.opportunities ?? [];
-                return opportunities.some((entry: any) => {
-                    if (!entry) return false;
-                    if (typeof entry === 'string') return entry === opportunity.iri;
-                    if (typeof entry === 'object' && entry.iri) return entry.iri === opportunity.iri;
-                    return false;
-                });
-            });
-
-            const ownerIri = owner?.iri ?? undefined;
+            const owner = await Organization.findOne<Organization>({opportunities: opportunity.iri});
+            ownerIri = owner?.iri ?? null;
             if (owner && ownerIri) {
                 organizationSummary = {
                     iri: ownerIri,
@@ -184,6 +175,16 @@ export async function getOpportunityByIri(req: Request, res: Response) {
 
         if (organizationSummary) {
             (opportunity as any).organization = organizationSummary;
+        }
+
+        const requestUser = (req as any).user as RequestUser | undefined;
+        if (requestUser && ownerIri) {
+            const isAdmin = hasRole(requestUser.roles, UserRole.ADMIN);
+            const ownsOpportunity = requestUser.organizationIRI
+                ? requestUser.organizationIRI === ownerIri
+                : false;
+
+            (opportunity as any).isOwner = isAdmin || ownsOpportunity;
         }
 
         res.status(200).json(opportunity);
@@ -260,7 +261,7 @@ export async function deleteOpportunityByIri(req: Request, res: Response) {
 
 export async function getAllOpportunities(req: Request, res: Response) {
     try {
-        const opportunities = await Opportunity.findAll<Opportunity>();
+        const opportunities = await Opportunity.findAll<Opportunity>(50, 0, { noPopulates: ['partners.organization.opportunities'] });
         res.status(200).json(opportunities);
     } catch (error) {
         console.error(error);

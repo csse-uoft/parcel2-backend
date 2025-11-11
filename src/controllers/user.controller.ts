@@ -177,6 +177,8 @@ export async function initUserProfile(req: Request, res: Response) {
             Object.assign(person, personData);
         }
 
+        await person.save();
+
         // Update user's personIRI
         user.personIRI = person.iri;
         user.isRegistrationComplete = true;

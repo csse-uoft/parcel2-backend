@@ -27,7 +27,7 @@ export class Land extends OwlClass<Land> {
     declare areaUnit?: AreaUnit;
 
     @OntologyProp('bedeo:current_land_use', { max: 1, onClass: 'bedeo:LandUse' })
-    declare currentLandUser?: LandUse;
+    declare currentLandUse?: LandUse;
 
     @OntologyProp('bedeo:designated_land_use', { max: 1, onClass: 'bedeo:LandUse' })
     declare designatedLandUse?: LandUse;

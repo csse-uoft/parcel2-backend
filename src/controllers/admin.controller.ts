@@ -2,8 +2,9 @@ import { Request, Response } from "express";
 import User from "../models/user.model";
 import { Organization } from "../models/organization.model";
 import { generatePassword } from "../services/auth.service";
-import { normalizeRoles } from "../constants/roles";
+import { normalizeRoles, UserRole } from "../constants/roles";
 import { applyOrganizationUpdates } from "../services/organization.service";
+import { RequestUser } from "../middleware/auth.middleware";
 
 export async function listUsers(req: Request, res: Response) {
     try {
@@ -135,6 +136,12 @@ export async function resetUserPassword(req: Request, res: Response) {
             return;
         }
 
+        const roles = Array.isArray(user.roles) ? (user.roles as UserRole[]) : [];
+        if (roles.includes(UserRole.ADMIN)) {
+            res.status(403).json({ message: "Cannot reset passwords for administrative accounts" });
+            return;
+        }
+
         const newPassword = generatePassword();
         user.password = newPassword;
         user.passwordResetToken = null;
@@ -163,5 +170,41 @@ export async function updateUserRoles(req: Request, res: Response) {
     } catch (error) {
         console.error("updateUserRoles error", error);
         res.status(500).json({ message: "Error updating roles" });
+    }
+}
+
+export async function deleteUserAccount(req: Request, res: Response) {
+    const userId = req.params.userId;
+    const requestUser = (req as any).user as RequestUser | undefined;
+
+    if (!userId) {
+        res.status(400).json({ message: "User ID is required" });
+        return;
+    }
+
+    if (requestUser && requestUser.id === userId) {
+        res.status(400).json({ message: "You cannot delete your own account" });
+        return;
+    }
+
+    try {
+        const user = await User.findById(userId);
+        if (!user) {
+            res.status(404).json({ message: "User not found" });
+            return;
+        }
+
+        const roles = Array.isArray(user.roles) ? (user.roles as UserRole[]) : [];
+        const isAdminAccount = roles.includes(UserRole.ADMIN);
+        if (isAdminAccount) {
+            res.status(403).json({ message: "Cannot delete administrative accounts" });
+            return;
+        }
+
+        await user.deleteOne();
+        res.json({ message: "User deleted" });
+    } catch (error) {
+        console.error("deleteUserAccount error", error);
+        res.status(500).json({ message: "Error deleting user" });
     }
 }

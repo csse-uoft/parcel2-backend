@@ -48,6 +48,12 @@ export async function resetOrganizationUserPassword(req: Request, res: Response)
             return;
         }
 
+        const roles = Array.isArray(user.roles) ? (user.roles as UserRole[]) : [];
+        if (roles.includes(UserRole.ADMIN)) {
+            res.status(403).json({ message: "Cannot reset passwords for administrative accounts" });
+            return;
+        }
+
         const newPassword = generatePassword();
         user.password = newPassword;
         await user.save();
@@ -56,6 +62,52 @@ export async function resetOrganizationUserPassword(req: Request, res: Response)
     } catch (error) {
         console.error("resetOrganizationUserPassword error", error);
         res.status(500).json({ message: "Error resetting password" });
+    }
+}
+
+export async function deleteOrganizationUser(req: Request, res: Response) {
+    const requestUser = (req as any).user as RequestUser;
+    const userId = req.params.userId;
+
+    if (!requestUser.organizationIRI) {
+        res.status(400).json({ message: "Organization not linked to requesting admin" });
+        return;
+    }
+
+    if (!userId) {
+        res.status(400).json({ message: "User ID is required" });
+        return;
+    }
+
+    if (requestUser.id === userId) {
+        res.status(400).json({ message: "You cannot delete your own account" });
+        return;
+    }
+
+    try {
+        const user = await User.findById(userId);
+        if (!user) {
+            res.status(404).json({ message: "User not found" });
+            return;
+        }
+
+        if (user.organizationIRI !== requestUser.organizationIRI) {
+            res.status(403).json({ message: "Target user is not in your organization" });
+            return;
+        }
+
+        const roles = Array.isArray(user.roles) ? user.roles : [];
+        const protectedRoles = new Set([UserRole.ADMIN, UserRole.ORG_ADMIN]);
+        if (roles.some((role) => protectedRoles.has(role as UserRole))) {
+            res.status(403).json({ message: "Cannot delete administrative accounts" });
+            return;
+        }
+
+        await user.deleteOne();
+        res.json({ message: "User deleted" });
+    } catch (error) {
+        console.error("deleteOrganizationUser error", error);
+        res.status(500).json({ message: "Error deleting user" });
     }
 }
 

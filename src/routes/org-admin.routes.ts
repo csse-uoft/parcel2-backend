@@ -7,6 +7,7 @@ import {
     listOrganizationUsers,
     resetOrganizationUserPassword,
     updateManagedOrganization,
+    deleteOrganizationUser,
 } from "../controllers/org-admin.controller";
 
 const router = Router();
@@ -17,6 +18,7 @@ router.get("/organization", getManagedOrganization);
 router.patch("/organization", updateManagedOrganization);
 router.get("/users", listOrganizationUsers);
 router.post("/users/:userId/reset-password", resetOrganizationUserPassword);
+router.delete("/users/:userId", deleteOrganizationUser);
 router.post("/users/invite", inviteUserToOrganization);
 
 export default router;

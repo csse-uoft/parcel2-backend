@@ -19,6 +19,7 @@ import { NamedNode } from "rdf-data-factory";
 import { OrganizationLegalName, OrganizationRegistrationNumber } from "./organization-registration.model";
 import { Opportunity } from "./opportunity.model";
 import { Role, RoleType } from "./role.model";
+import { CallForProposals } from "./call-for-proposal.model";
 
 
 @OntologyClass('bedeo:Organization', { instanceBase: 'bedeo:organization' })
@@ -198,6 +199,9 @@ export class Organization extends OwlClass<Organization> {
 
     @OntologyProp('bedeo:has_opportunity', { onClass: 'bedeo:Opportunity' })
     declare opportunities?: (string | Opportunity)[]; // can be IRIs or populated
+
+    @OntologyProp('bedeo:has_call_for_proposal', { onClass: 'bedeo:CallForProposals' })
+    declare callForProposals?: (string | CallForProposals)[];
 
     @OntologyProp('bedeo:has_role_type', { onClass: 'bedeo:RoleType' })
     declare roleTypes?: RoleType[] | NamedNode[] | string[];
