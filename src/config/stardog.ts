@@ -24,7 +24,7 @@ export const configureStardog = async () => {
     // Get how many triples are in the database
     const response = await query.execute(
         stardogConn,
-        'parcel2',
+        dbName,
         'select (count(*) as ?count) where { ?s ?p ?o }',
         'application/sparql-results+json',
         {
